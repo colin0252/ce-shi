@@ -411,11 +411,24 @@ public extension ProcessInfo {
         if isTXMOverridden {
             return true
         }
-        return ProcessInfo.detectLocalTXM()
+        return ProcessInfo.hasTXMSupport(
+            operatingSystemVersion: operatingSystemVersion,
+            localTXMDetector: ProcessInfo.detectLocalTXM
+        )
     }
 
     var isTXMOverridden: Bool {
         UserDefaults.standard.bool(forKey: UserDefaults.Keys.txmOverride)
+    }
+
+    static func hasTXMSupport(
+        operatingSystemVersion: OperatingSystemVersion,
+        localTXMDetector: () -> Bool
+    ) -> Bool {
+        guard operatingSystemVersion.majorVersion >= 26 else {
+            return false
+        }
+        return localTXMDetector()
     }
 
     private static func detectLocalTXM() -> Bool {
