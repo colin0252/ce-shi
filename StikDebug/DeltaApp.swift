@@ -2,8 +2,9 @@ import SwiftUI
 import Foundation
 import CommonCrypto
 import UIKit
+import CoreImage
 
-// MARK: - AES 加密工具（使用 CCCrypt 稳定实现）
+//AES加密模块 固定密钥 IENNSJFJWKSFJ
 struct AESHelper {
     static let keyString = "IENNSJFJWKSFJ"
     static let mainKey = Data(keyString.utf8)
@@ -20,56 +21,28 @@ struct AESHelper {
     }
     
     private static func aesCrypt(text: String, keyData: Data, isEncrypt: Bool) -> String {
-        let iv = Data(repeating: UInt8(0), count: 16) // 全零 IV
-        let options = CCOptions(kCCOptionPKCS7Padding)
-        
+        let iv = Data(repeating: UInt8(0), count: 16)
+        var cryptor: CCCryptorRef?
+        let alg = CCAlgorithm(kCCAlgorithmAES128)
+        let pad = CCOption(kCCOptionPKCS7Padding)
+        let mode = kCCModeCBC
         if isEncrypt {
-            guard let inputData = text.data(using: .utf8) else { return "" }
-            var outLength = Int(inputData.count) + kCCBlockSizeAES128
-            var outData = Data(count: outLength)
-            var moved = 0
-            let status = outData.withUnsafeMutableBytes { outBytes in
-                inputData.withUnsafeBytes { inBytes in
-                    CCCrypt(CCOperation(kCCEncrypt),
-                            CCAlgorithm(kCCAlgorithmAES128),
-                            options,
-                            keyData.withUnsafeBytes { $0.baseAddress },
-                            keyData.count,
-                            iv.withUnsafeBytes { $0.baseAddress },
-                            inBytes.baseAddress, inputData.count,
-                            outBytes.baseAddress, outLength,
-                            &moved)
-                }
-            }
-            guard status == kCCSuccess else { return "" }
-            outData.count = moved
-            return outData.base64EncodedString()
+            let rawData = Data(text.utf8)
+            CCCryptorCreateWithMode(kCCEncrypt, mode, alg, pad, iv, keyData, nil, 0, nil, nil, 0, &cryptor)
+            let up = CCCryptorUpdate(cryptor!, rawData, rawData.count)!
+            let fin = CCCryptorFinal(cryptor!)!
+            return (up+fin).base64EncodedString()
         } else {
-            guard let inputData = Data(base64Encoded: text) else { return "解密失败" }
-            var outLength = Int(inputData.count) + kCCBlockSizeAES128
-            var outData = Data(count: outLength)
-            var moved = 0
-            let status = outData.withUnsafeMutableBytes { outBytes in
-                inputData.withUnsafeBytes { inBytes in
-                    CCCrypt(CCOperation(kCCDecrypt),
-                            CCAlgorithm(kCCAlgorithmAES128),
-                            options,
-                            keyData.withUnsafeBytes { $0.baseAddress },
-                            keyData.count,
-                            iv.withUnsafeBytes { $0.baseAddress },
-                            inBytes.baseAddress, inputData.count,
-                            outBytes.baseAddress, outLength,
-                            &moved)
-                }
-            }
-            guard status == kCCSuccess else { return "解密失败" }
-            outData.count = moved
-            return String(data: outData, encoding: .utf8) ?? "解密失败"
+            guard let rawData = Data(base64Encoded: text) else { return "解密失败" }
+            CCCryptorCreateWithMode(kCCDecrypt, mode, alg, pad, iv, keyData, nil, 0, nil, nil, 0, &cryptor)
+            let up = CCCryptorUpdate(cryptor!, rawData, rawData.count)!
+            let fin = CCCryptorFinal(cryptor!)!
+            return String(data: up+fin, encoding: .utf8) ?? "解密失败"
         }
     }
 }
 
-// MARK: - 账号模型
+//账号结构体
 struct Account: Codable, Identifiable {
     let id = UUID()
     let openid: String
@@ -79,7 +52,7 @@ struct Account: Codable, Identifiable {
     let createTime: Date
 }
 
-// MARK: - 数据管理器
+//全局数据存储
 class DataManager: ObservableObject {
     @Published var accounts: [Account] = []
     var docPath: URL {
@@ -108,91 +81,165 @@ class DataManager: ObservableObject {
     }
 }
 
-// MARK: - 二维码生成（用于展示，先不做网络请求）
-struct QRCodeGenerator {
-    static func createQRCode(urlString:String) -> UIImage {
-        let data = urlString.data(using: String.Encoding.utf8)
-        let filter = CIFilter(name: "CIQRCodeGenerator")
-        filter?.setValue(data, forKey: "inputMessage")
-        filter?.setValue("H", forKey: "inputCorrectionLevel")
-        let ciImage = filter?.outputImage
-        let transform = CGAffineTransform(scaleX: 12, y: 12)
-        let scaledImage = ciImage?.transformed(by: transform)
-        return UIImage(ciImage: scaledImage!)
-    }
+//本地生成高清二维码
+func generateQRCode(from string: String) -> UIImage {
+    let data = string.data(using: String.Encoding.utf8)!
+    let filter = CIFilter(name: "CIQRCodeGenerator")
+    filter?.setValue(data, forKey: "inputMessage")
+    filter?.setValue("H", forKey: "inputCorrectionLevel")
+    let ciImage = filter!.outputImage!
+    let transform = CGAffineTransform(scaleX: 15, y: 15)
+    let scaled = ciImage.transformed(by: transform)
+    return UIImage(ciImage: scaled)
 }
 
-// MARK: - A 页面：扫码获取 Token（简化版，仅演示 UI）
-struct ScanView: View {
-    @ObservedObject var dm: DataManager
-    @Environment(\.presentationMode) var presentationMode
-    @State var qrImage = UIImage()
-    @State var sessionKey = UUID().uuidString
-    let baseUrl = "https://game.seecoon.com/h5/qqauth?session="
-    
-    func refreshCode() {
-        sessionKey = UUID().uuidString
-        let qrUrl = baseUrl + sessionKey
-        qrImage = QRCodeGenerator.createQRCode(urlString: qrUrl)
-        // 实际轮询逻辑可在此添加，暂省略
-    }
-    
+//首页
+struct HomeView: View {
+    @StateObject var dm = DataManager()
+    @State var targetPage: Int? = nil
     var body: some View {
-        VStack(spacing:20) {
-            Button("← 返回首页") {
-                presentationMode.wrappedValue.dismiss()
+        NavigationStack {
+            VStack(spacing:35) {
+                Button { targetPage = 1 } label: {
+                    Text("A：三角洲扫码获取Token")
+                        .font(.title2)
+                        .frame(width:320, height:85)
+                        .background(Color.orange)
+                        .foregroundColor(.white)
+                        .cornerRadius(14)
+                }
+                Button { targetPage = 2 } label: {
+                    Text("B：账号Token管理")
+                        .font(.title2)
+                        .frame(width:320, height:85)
+                        .background(Color.green)
+                        .foregroundColor(.white)
+                        .cornerRadius(14)
+                }
+                Button { targetPage = 3 } label: {
+                    Text("C：Token登录与解密工具")
+                        .font(.title2)
+                        .frame(width:320, height:85)
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(14)
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading)
-            
-            Text("三角洲行动 移动端扫码登录")
-                .font(.title)
-            Text("使用QQ扫描下方二维码，跳转三角洲APP完成授权")
-                .font(.subheadline)
-                .foregroundColor(.gray)
-            
-            Image(uiImage: qrImage)
-                .resizable()
-                .frame(width: 260, height: 260)
-            
-            Button("刷新二维码", action: refreshCode)
-                .buttonStyle(.borderedProminent)
-            
-            Spacer()
-        }
-        .onAppear {
-            refreshCode()
-            // 尝试打开 QQ（仅示意）
-            if let url = URL(string: "mqqapi://") {
-                UIApplication.shared.open(url)
+            .navigationDestination(item:$targetPage) { page in
+                switch page {
+                case 1: ScanLoginView(dm: dm)
+                case 2: AccountListView(dm: dm)
+                case 3: TokenLoginView()
+                default: EmptyView()
+                }
             }
+            .navigationTitle("三角洲工具箱")
         }
     }
 }
 
-// MARK: - B 页面：账号管理
-struct TokenManageView: View {
+//A页面：1:1复刻截图扫码界面
+struct ScanLoginView: View {
     @ObservedObject var dm: DataManager
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) var dismiss
+    @State var qrImage: UIImage = UIImage()
+    @State var sessionId: String = ""
+    @State var timer: Timer? = nil
+    
+    func createNewSession() {
+        sessionId = UUID().uuidString
+        let qrContent = "seecoon://qqscan?session=\(sessionId)"
+        qrImage = generateQRCode(from: qrContent)
+        startCheck()
+    }
+    
+    func startCheck() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 1.3, repeats: true) { _ in
+            let url = URL(string:"https://game.seecoon.com/api/login/checkScan?session=\(sessionId)")!
+            URLSession.shared.dataTask(with: url) { data,_,_ in
+                guard let data = data else { return }
+                let obj = try! JSONSerialization.jsonObject(with: data) as! [String:Any]
+                if let resData = obj["data"] as? [String:Any] {
+                    DispatchQueue.main.async {
+                        let newAcc = Account(
+                            id: UUID(),
+                            openid: resData["openid"] as! String,
+                            seecoon_token: resData["seecoon_token"] as! String,
+                            quid: resData["quid"] as! String,
+                            refresh_token: resData["refresh_token"] as! String,
+                            createTime: Date()
+                        )
+                        dm.saveAccount(acc: newAcc)
+                        createNewSession()
+                    }
+                }
+            }.resume()
+        }
+    }
     
     var body: some View {
         VStack {
-            Button("← 返回首页") {
-                presentationMode.wrappedValue.dismiss()
+            HStack {
+                Button("关闭") { dismiss() }
+                    .foregroundColor(Color.blue)
+                    .font(.title3)
+                Spacer()
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading)
+            .padding(.horizontal,20)
             
+            Spacer()
+            
+            HStack(spacing:12) {
+                Image(systemName: "penguin.fill")
+                    .font(.system(size:48))
+                    .foregroundColor(.black)
+                Text("QQ 授权登录")
+                    .font(.system(size:36, weight: .medium))
+            }
+            
+            Image(uiImage: qrImage)
+                .resizable()
+                .frame(width:320, height:320)
+                .padding(.vertical,30)
+            
+            Text("使用QQ手机版扫码授权登录")
+                .font(.system(size:22))
+                .foregroundColor(.gray)
+            
+            Spacer()
+            Spacer()
+        }
+        .onAppear {
+            createNewSession()
+            UIApplication.shared.open(URL(string:"mqqapi://auth?appname=三角洲行动")!)
+        }
+        .onDisappear {
+            timer?.invalidate()
+        }
+    }
+}
+
+//B页面 账号列表
+struct AccountListView: View {
+    @ObservedObject var dm: DataManager
+    @Environment(\.dismiss) var dismiss
+    var body: some View {
+        VStack {
+            HStack {
+                Button("← 返回首页") { dismiss() }
+                Spacer()
+            }.padding()
             List(dm.accounts) { acc in
-                VStack(alignment: .leading) {
+                VStack(alignment:.leading, spacing:6) {
                     Text("OpenID：\(acc.openid)")
-                    Text("Token：\(acc.seecoon_token)")
-                        .font(.system(size: 8))
-                    HStack {
+                    Text("Seecoon_Token：\(acc.seecoon_token)")
+                        .font(.system(size:9))
+                    HStack(spacing:15) {
                         Button("复制Token") {
                             UIPasteboard.general.string = acc.seecoon_token
                         }
-                        Button("删除账号", role: .destructive) {
+                        Button("删除账号", role:.destructive) {
                             dm.deleteAccount(id: acc.id)
                         }
                     }
@@ -202,133 +249,104 @@ struct TokenManageView: View {
     }
 }
 
-// MARK: - 解密弹窗
-struct DecryptView: View {
-    @State var cipherText = ""
-    @State var keyInput = ""
-    @State var result = ""
-    var body: some View {
-        VStack(spacing:12) {
-            TextField("粘贴dat全部密文", text: $cipherText)
-                .textFieldStyle(.roundedBorder)
-            TextField("输入密钥", text: $keyInput)
-                .textFieldStyle(.roundedBorder)
-            Button("解密") {
-                result = AESHelper.customDecrypt(base64Str: cipherText, keyStr: keyInput)
-            }
-            TextEditor(text: $result)
-                .frame(height: 200)
-        }
-        .padding()
-    }
-}
-
-// MARK: - C 页面：Token 校验与登录
-struct LoginDecryptView: View {
-    @Environment(\.presentationMode) var presentationMode
+//C页面 修复网络请求、删除多余返回按钮、区分三种状态
+struct TokenLoginView: View {
+    @Environment(\.dismiss) var dismiss
     @State var inputToken = ""
-    @State var tipText = ""
-    @State var showDecrypt = false
+    @State var tips = ""
+    @State var showDecryptSheet = false
+    @State var cipherStr = ""
+    @State var keyStr = ""
+    @State var decryptResult = ""
     
-    func checkToken() {
-        let headers = [
-            "Authorization": "seecoon_token=\(inputToken)",
-            "User-Agent": "SeecoonGame",
-            "Content-Type": "application/json"
+    func checkTokenValid() {
+        tips = "请求中..."
+        let header: [String:String] = [
+            "Authorization":"seecoon_token=\(inputToken)",
+            "User-Agent":"SeecoonGame",
+            "Content-Type":"application/json"
         ]
-        var req = URLRequest(url: URL(string: "https://game.seecoon.com/api/user/checkLogin")!)
+        var req = URLRequest(url: URL(string:"https://game.seecoon.com/api/user/checkLogin")!)
         req.httpMethod = "POST"
-        req.allHTTPHeaderFields = headers
-        req.httpBody = "{}".data(using: .utf8)
-        URLSession.shared.dataTask(with: req) { data, _, _ in
+        req.allHTTPHeaderFields = header
+        req.httpBody = "{}".data(using:.utf8)
+        req.timeoutInterval = 3
+        
+        URLSession.shared.dataTask(with: req) { data, response, error in
             DispatchQueue.main.async {
-                guard let d = data,
-                      let json = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
-                      let valid = json["data"] as? Bool else {
-                    tipText = "网络异常"
+                if error != nil {
+                    tips = "网络异常"
                     return
                 }
-                tipText = valid ? "✅ Token有效，可以一键登录" : "❌ Token失效"
+                guard let d = data else {
+                    tips = "网络异常"
+                    return
+                }
+                do{
+                    let json = try JSONSerialization.jsonObject(with:d) as! [String:Any]
+                    let ok = json["data"] as? Bool ?? false
+                    tips = ok ? "✅ Token有效，可以一键登录" : "❌ Token已经失效"
+                }catch{
+                    tips = "网络异常"
+                }
             }
         }.resume()
     }
     
-    func openGame() {
-        guard let url = URL(string: "seecoon://login?token=\(inputToken)") else { return }
-        UIApplication.shared.open(url)
+    func launchGame() {
+        UIApplication.shared.open(URL(string:"seecoon://login?token=\(inputToken)")!)
     }
     
     var body: some View {
-        VStack(spacing:15) {
-            Button("← 返回首页") {
-                presentationMode.wrappedValue.dismiss()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading)
-            
-            TextField("粘贴seecoon_token", text: $inputToken)
+        VStack(spacing:22) {
+            TextField("粘贴seecoon_token", text:$inputToken)
                 .textFieldStyle(.roundedBorder)
-                .padding(.horizontal)
-            Button("检测Token有效性", action: checkToken)
-            Text(tipText)
-            Button("唤起三角洲一键登录", action: openGame)
-                .disabled(!tipText.contains("✅"))
+                .padding(.horizontal,20)
+            
+            Button("检测Token有效性", action: checkTokenValid)
+                .foregroundColor(.blue)
+                .font(.system(size:18))
+            
+            Text(tips)
+                .font(.system(size:18))
+            
+            Button("唤起三角洲一键登录", action: launchGame)
+                .disabled(!tips.contains("✅"))
+                .foregroundColor(.gray)
+                .font(.system(size:18))
+            
             Button("🔐 密文解密工具") {
-                showDecrypt = true
+                showDecryptSheet = true
             }
+            .foregroundColor(.blue)
+            .font(.system(size:18))
+            
             Spacer()
         }
-        .sheet(isPresented: $showDecrypt) {
-            DecryptView()
-        }
-        .padding()
-    }
-}
-
-// MARK: - 首页（使用 NavigationView 兼容 iOS 15）
-struct HomeView: View {
-    @StateObject var dm = DataManager()
-    @State var selectedTab = 0
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 30) {
-                NavigationLink(destination: ScanView(dm: dm)) {
-                    Text("A：三角洲扫码获取Token")
-                        .font(.title2)
-                        .frame(width: 300, height: 80)
-                        .background(Color.orange)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
+        .padding(.top,20)
+        .sheet(isPresented:$showDecryptSheet) {
+            VStack(spacing:14) {
+                TextField("粘贴delta.dat全部密文内容", text:$cipherStr)
+                    .textFieldStyle(.roundedBorder)
+                TextField("输入解密密钥", text:$keyStr)
+                    .textFieldStyle(.roundedBorder)
+                Button("解密") {
+                    decryptResult = AESHelper.customDecrypt(base64Str: cipherStr, keyStr: keyStr)
                 }
-                NavigationLink(destination: TokenManageView(dm: dm)) {
-                    Text("B：账号Token管理")
-                        .font(.title2)
-                        .frame(width: 300, height: 80)
-                        .background(Color.green)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
-                }
-                NavigationLink(destination: LoginDecryptView()) {
-                    Text("C：Token登录与解密工具")
-                        .font(.title2)
-                        .frame(width: 300, height: 80)
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
-                }
+                TextEditor(text:$decryptResult)
+                    .frame(height:240)
             }
-            .navigationTitle("三角洲行动工具箱")
+            .padding()
         }
     }
 }
 
-// MARK: - App 入口
 @main
-struct DeltaApp: App {
+struct DeltaMainApp: App {
     var body: some Scene {
         WindowGroup {
             HomeView()
+                .preferredColorScheme(.light)
         }
     }
 }
