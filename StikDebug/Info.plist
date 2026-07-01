@@ -1,65 +1,10 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
+<key>NSAppTransportSecurity</key>
 <dict>
-    <key>CFBundleDevelopmentRegion</key>
-    <string>en</string>
-    <key>CFBundleExecutable</key>
-    <string>$(EXECUTABLE_NAME)</string>
-    <key>CFBundleIdentifier</key>
-    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-    <key>CFBundleInfoDictionaryVersion</key>
-    <string>6.0</string>
-    <key>CFBundleName</key>
-    <string>$(PRODUCT_NAME)</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
-    <key>LSRequiresIPhoneOS</key>
+    <key>NSAllowsArbitraryLoads</key>
     <true/>
-    
-    <!-- 网络权限说明 -->
-    <key>NSLocalNetworkUsageDescription</key>
-    <string>需要网络权限获取登录Token并校验账号</string>
-    
-    <!-- 允许 HTTP 请求（游戏 API 可能不支持 HTTPS） -->
-    <key>NSAppTransportSecurity</key>
-    <dict>
-        <key>NSAllowsArbitraryLoads</key>
-        <true/>
-    </dict>
-    
-    <!-- 声明可打开的外部 URL Scheme（QQ 和 三角洲游戏） -->
-    <key>LSApplicationQueriesSchemes</key>
-    <array>
-        <string>mqqapi</string>
-        <string>seecoon</string>
-    </array>
-    
-    <!-- SwiftUI 生命周期不需要 Scene Manifest，但保留以防兼容性问题 -->
-    <key>UIApplicationSceneManifest</key>
-    <dict>
-        <key>UIApplicationSupportsMultipleScenes</key>
-        <false/>
-    </dict>
-    
-    <!-- 启动屏幕（空） -->
-    <key>UILaunchScreen</key>
-    <dict/>
-    
-    <!-- 设备要求 -->
-    <key>UIRequiredDeviceCapabilities</key>
-    <array>
-        <string>armv7</string>
-    </array>
-    
-    <!-- 支持的方向 -->
-    <key>UISupportedInterfaceOrientations</key>
-    <array>
-        <string>UIInterfaceOrientationPortrait</string>
-    </array>
 </dict>
-</plist>
+<key>LSApplicationQueriesSchemes</key>
+<array>
+<string>seecoon</string>
+<string>mqqapi</string>
+</array>
