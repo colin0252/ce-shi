@@ -11,6 +11,16 @@
     <array>
         <string>seecoon</string>
         <string>mqqapi</string>
+        <string>seecoonlocal</string>
+    </array>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>seecoonlocal</string>
+            </array>
+        </dict>
     </array>
     <key>UISupportedInterfaceOrientations</key>
     <array>
