@@ -4,7 +4,7 @@ import CommonCrypto
 import UIKit
 import CoreImage
 
-//AES加密模块 固定密钥 IENNSJFJWKSFJ
+// MARK: - AES 加密（使用 CCCrypt 单次调用，全版本兼容）
 struct AESHelper {
     static let keyString = "IENNSJFJWKSFJ"
     static let mainKey = Data(keyString.utf8)
@@ -22,27 +22,55 @@ struct AESHelper {
     
     private static func aesCrypt(text: String, keyData: Data, isEncrypt: Bool) -> String {
         let iv = Data(repeating: UInt8(0), count: 16)
-        var cryptor: CCCryptorRef?
-        let alg = CCAlgorithm(kCCAlgorithmAES128)
-        let pad = CCOption(kCCOptionPKCS7Padding)
-        let mode = kCCModeCBC
+        let options = CCOptions(kCCOptionPKCS7Padding)
+        
         if isEncrypt {
-            let rawData = Data(text.utf8)
-            CCCryptorCreateWithMode(kCCEncrypt, mode, alg, pad, iv, keyData, nil, 0, nil, nil, 0, &cryptor)
-            let up = CCCryptorUpdate(cryptor!, rawData, rawData.count)!
-            let fin = CCCryptorFinal(cryptor!)!
-            return (up+fin).base64EncodedString()
+            guard let inputData = text.data(using: .utf8) else { return "" }
+            var outLength = Int(inputData.count) + kCCBlockSizeAES128
+            var outData = Data(count: outLength)
+            var moved = 0
+            let status = outData.withUnsafeMutableBytes { outBytes in
+                inputData.withUnsafeBytes { inBytes in
+                    CCCrypt(CCOperation(kCCEncrypt),
+                            CCAlgorithm(kCCAlgorithmAES128),
+                            options,
+                            keyData.withUnsafeBytes { $0.baseAddress },
+                            keyData.count,
+                            iv.withUnsafeBytes { $0.baseAddress },
+                            inBytes.baseAddress, inputData.count,
+                            outBytes.baseAddress, outLength,
+                            &moved)
+                }
+            }
+            guard status == kCCSuccess else { return "" }
+            outData.count = moved
+            return outData.base64EncodedString()
         } else {
-            guard let rawData = Data(base64Encoded: text) else { return "解密失败" }
-            CCCryptorCreateWithMode(kCCDecrypt, mode, alg, pad, iv, keyData, nil, 0, nil, nil, 0, &cryptor)
-            let up = CCCryptorUpdate(cryptor!, rawData, rawData.count)!
-            let fin = CCCryptorFinal(cryptor!)!
-            return String(data: up+fin, encoding: .utf8) ?? "解密失败"
+            guard let inputData = Data(base64Encoded: text) else { return "解密失败" }
+            var outLength = Int(inputData.count) + kCCBlockSizeAES128
+            var outData = Data(count: outLength)
+            var moved = 0
+            let status = outData.withUnsafeMutableBytes { outBytes in
+                inputData.withUnsafeBytes { inBytes in
+                    CCCrypt(CCOperation(kCCDecrypt),
+                            CCAlgorithm(kCCAlgorithmAES128),
+                            options,
+                            keyData.withUnsafeBytes { $0.baseAddress },
+                            keyData.count,
+                            iv.withUnsafeBytes { $0.baseAddress },
+                            inBytes.baseAddress, inputData.count,
+                            outBytes.baseAddress, outLength,
+                            &moved)
+                }
+            }
+            guard status == kCCSuccess else { return "解密失败" }
+            outData.count = moved
+            return String(data: outData, encoding: .utf8) ?? "解密失败"
         }
     }
 }
 
-//账号结构体
+// MARK: - 账号模型
 struct Account: Codable, Identifiable {
     let id = UUID()
     let openid: String
@@ -52,7 +80,7 @@ struct Account: Codable, Identifiable {
     let createTime: Date
 }
 
-//全局数据存储
+// MARK: - 数据管理器
 class DataManager: ObservableObject {
     @Published var accounts: [Account] = []
     var docPath: URL {
@@ -84,7 +112,7 @@ class DataManager: ObservableObject {
     }
 }
 
-//本地生成高清二维码
+// MARK: - 二维码生成
 func generateQRCode(from string: String) -> UIImage {
     let data = string.data(using: String.Encoding.utf8)!
     let filter = CIFilter(name: "CIQRCodeGenerator")
@@ -96,10 +124,11 @@ func generateQRCode(from string: String) -> UIImage {
     return UIImage(ciImage: scaled)
 }
 
-//首页
+// MARK: - 首页（使用 NavigationStack，iOS 16+）
 struct HomeView: View {
     @StateObject var dm = DataManager()
     @State var targetPage: Int? = nil
+    
     var body: some View {
         NavigationStack {
             VStack(spacing:35) {
@@ -141,10 +170,10 @@ struct HomeView: View {
     }
 }
 
-//A页面：横屏扫码，抓到token加密保存，立刻刷新二维码
+// MARK: - A 页面：扫码登录（横屏）
 struct ScanLoginView: View {
     @ObservedObject var dm: DataManager
-    @Environment(\.presentationMode) var presentationMode  // ✅ iOS 13+ 兼容
+    @Environment(\.dismiss) var dismiss
     @State var qrImage: UIImage = UIImage()
     @State var sessionId: String = ""
     @State var timer: Timer? = nil
@@ -162,8 +191,8 @@ struct ScanLoginView: View {
             let url = URL(string:"https://game.seecoon.com/api/login/checkScan?session=\(sessionId)")!
             URLSession.shared.dataTask(with: url) { data,_,_ in
                 guard let data = data else { return }
-                let obj = try! JSONSerialization.jsonObject(with: data) as! [String:Any]
-                if let resData = obj["data"] as? [String:Any] {
+                if let obj = try? JSONSerialization.jsonObject(with: data) as? [String:Any],
+                   let resData = obj["data"] as? [String:Any] {
                     DispatchQueue.main.async {
                         let newAcc = Account(
                             openid: resData["openid"] as! String,
@@ -185,7 +214,7 @@ struct ScanLoginView: View {
             VStack(spacing:40) {
                 HStack {
                     Button("关闭") {
-                        presentationMode.wrappedValue.dismiss()
+                        dismiss()
                     }
                     .foregroundColor(Color.blue)
                     .font(.title3)
@@ -221,27 +250,25 @@ struct ScanLoginView: View {
         .onDisappear {
             timer?.invalidate()
         }
-        .onAppear{
+        .onAppear {
             UIDevice.current.setValue(UIInterfaceOrientation.landscapeRight.rawValue, forKey: "orientation")
         }
-        .onDisappear{
+        .onDisappear {
             UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
         }
-        .supportedOrientations(.landscapeRight)
+        .supportedOrientations(.landscapeRight)  // ✅ iOS 16+ 可用
     }
 }
 
-//B页面：账号列表
+// MARK: - B 页面：账号列表
 struct AccountListView: View {
     @ObservedObject var dm: DataManager
-    @Environment(\.presentationMode) var presentationMode  // ✅ iOS 13+ 兼容
+    @Environment(\.dismiss) var dismiss
     
     var body: some View {
         VStack {
             HStack {
-                Button("← 返回首页") {
-                    presentationMode.wrappedValue.dismiss()
-                }
+                Button("← 返回首页") { dismiss() }
                 Spacer()
             }.padding()
             List(dm.accounts) { acc in
@@ -256,7 +283,7 @@ struct AccountListView: View {
                         Button("删除账号") {
                             dm.deleteAccount(id: acc.id)
                         }
-                        .foregroundColor(.red)  // ✅ iOS 14 兼容，手动红色
+                        .foregroundColor(.red)
                     }
                 }
             }
@@ -264,9 +291,9 @@ struct AccountListView: View {
     }
 }
 
-//C页面：Token登录与解密
+// MARK: - C 页面：Token 登录与解密
 struct TokenLoginView: View {
-    @Environment(\.presentationMode) var presentationMode  // ✅ iOS 13+ 兼容
+    @Environment(\.dismiss) var dismiss
     @State var inputToken = ""
     @State var tips = ""
     @State var showDecryptSheet = false
@@ -309,7 +336,9 @@ struct TokenLoginView: View {
     }
     
     func launchGame() {
-        UIApplication.shared.open(URL(string:"seecoon://login?token=\(inputToken)")!)
+        if let url = URL(string:"seecoon://login?token=\(inputToken)") {
+            UIApplication.shared.open(url)
+        }
     }
     
     var body: some View {
@@ -356,6 +385,7 @@ struct TokenLoginView: View {
     }
 }
 
+// MARK: - App 入口
 @main
 struct DeltaMainApp: App {
     var body: some Scene {
