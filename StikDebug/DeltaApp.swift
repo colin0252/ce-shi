@@ -124,15 +124,32 @@ func generateQRCode(from string: String) -> UIImage {
     return UIImage(ciImage: scaled)
 }
 
-// MARK: - 首页（使用 NavigationStack，iOS 16+）
+// MARK: - 横屏修饰器（手动强制旋转）
+struct LandscapeModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                UIDevice.current.setValue(UIInterfaceOrientation.landscapeRight.rawValue, forKey: "orientation")
+            }
+            .onDisappear {
+                UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
+            }
+    }
+}
+
+extension View {
+    func forceLandscape() -> some View {
+        self.modifier(LandscapeModifier())
+    }
+}
+
+// MARK: - 首页（使用 NavigationView 兼容 iOS 16）
 struct HomeView: View {
     @StateObject var dm = DataManager()
-    @State var targetPage: Int? = nil
-    
     var body: some View {
-        NavigationStack {
+        NavigationView {
             VStack(spacing:35) {
-                Button { targetPage = 1 } label: {
+                NavigationLink(destination: ScanLoginView(dm: dm)) {
                     Text("A：三角洲扫码获取Token")
                         .font(.title2)
                         .frame(width:320, height:85)
@@ -140,7 +157,7 @@ struct HomeView: View {
                         .foregroundColor(.white)
                         .cornerRadius(14)
                 }
-                Button { targetPage = 2 } label: {
+                NavigationLink(destination: AccountListView(dm: dm)) {
                     Text("B：账号Token管理")
                         .font(.title2)
                         .frame(width:320, height:85)
@@ -148,7 +165,7 @@ struct HomeView: View {
                         .foregroundColor(.white)
                         .cornerRadius(14)
                 }
-                Button { targetPage = 3 } label: {
+                NavigationLink(destination: TokenLoginView()) {
                     Text("C：Token登录与解密工具")
                         .font(.title2)
                         .frame(width:320, height:85)
@@ -157,16 +174,9 @@ struct HomeView: View {
                         .cornerRadius(14)
                 }
             }
-            .navigationDestination(item:$targetPage) { page in
-                switch page {
-                case 1: ScanLoginView(dm: dm)
-                case 2: AccountListView(dm: dm)
-                case 3: TokenLoginView()
-                default: EmptyView()
-                }
-            }
             .navigationTitle("三角洲工具箱")
         }
+        .navigationViewStyle(StackNavigationViewStyle())
     }
 }
 
@@ -250,13 +260,7 @@ struct ScanLoginView: View {
         .onDisappear {
             timer?.invalidate()
         }
-        .onAppear {
-            UIDevice.current.setValue(UIInterfaceOrientation.landscapeRight.rawValue, forKey: "orientation")
-        }
-        .onDisappear {
-            UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
-        }
-        .supportedOrientations(.landscapeRight)  // ✅ iOS 16+ 可用
+        .forceLandscape()  // 强制横屏
     }
 }
 
