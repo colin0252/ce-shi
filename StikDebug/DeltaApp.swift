@@ -301,3 +301,5 @@ struct DeltaApp: App {
         WindowGroup {
             HomeView()
         }
+    }
+}
