@@ -11,16 +11,16 @@ jobs:
       - name: 拉取源码
         uses: actions/checkout@v6
 
-      - name: 补全BundleID，绕过Xcode16报错
+      - name: 修复BundleID，绕过Xcode16报错
         run: |
           git config --global user.name ci
           git config --global user.email ci@localhost
           /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string com.stikdebug.app" StikDebug/Info.plist || true
           /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.stikdebug.app" StikDebug/Info.plist
           git add StikDebug/Info.plist
-          git commit -m "fix"
+          git commit -m "fixbundle"
 
-      - name: 云端临时生成私有协助权限entitlements.plist
+      - name: 云端生成协助权限entitlements.plist（不会上传源码）
         run: |
           cat > entitlements.plist <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -47,7 +47,7 @@ jobs:
 </plist>
 EOF
 
-      - name: 生成ExportOptions导出配置
+      - name: 生成ExportOptions.plist
         run: |
           cat > ExportOptions.plist <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -70,7 +70,7 @@ EOF
 </plist>
 EOF
 
-      - name: Archive编译，注入私有权限
+      - name: 归档编译（注入权限，原版手动单次请求打包方式）
         run: |
           mkdir build
           xcodebuild archive \
@@ -90,7 +90,7 @@ EOF
           -exportPath build \
           -exportOptionsPlist ExportOptions.plist
 
-      - name: 上传成品文件
+      - name: 上传成品IPA
         uses: actions/upload-artifact@v7
         with:
           name: StikDebug收号器
