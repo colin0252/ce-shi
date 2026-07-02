@@ -1,45 +1,51 @@
 name: Build IPA
-on:
-  push:
-    branches: [ main ]
+on: push
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-    - name: 指定Xcode16.4
-      run: sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+      - name: 强行写入BundleID到Info.plist，解决Xcode16归档缺失包名报错
+        run: |
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string com.stikdebug.app" StikDebug/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.stikdebug.app" StikDebug/Info.plist
 
-    - name: 归档打包（强制写入BundleID，解决exit code70）
-      run: |
-        mkdir -p build
-        xcodebuild archive \
-        -project StikDebug.xcodeproj \
-        -scheme StikDebug \
-        -configuration Release \
-        -sdk iphoneos \
-        -archivePath ./build/StikDebug.xcarchive \
-        PRODUCT_BUNDLE_IDENTIFIER="com.stikdebug.app" \
-        CODE_SIGN_IDENTITY="" \
-        CODE_SIGNING_REQUIRED=NO \
-        CODE_SIGNING_ALLOWED=NO \
-        ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=YES \
-        SWIFT_VERSION=5 \
-        IPHONEOS_DEPLOYMENT_TARGET=16.0 \
-        COMPILE_BITCODE=NO
+      - name: 创建build文件夹并执行归档打包（全程关闭签名，适配Xcode16）
+        run: |
+          mkdir -p build
+          xcodebuild archive \
+          -project StikDebug.xcodeproj \
+          -scheme StikDebug \
+          -configuration Release \
+          -sdk iphoneos \
+          -archivePath ./build/StikDebug.xcarchive \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=YES \
+          SWIFT_VERSION=5 \
+          IPHONEOS_DEPLOYMENT_TARGET=16.0 \
+          COMPILE_BITCODE=NO
 
-    - name: 导出无签名IPA
-      run: |
-        echo '{"method":"development","signingStyle":"manual","compileBitcode":false,"thinning":"none"}' > export.plist
-        xcodebuild -exportArchive \
-        -archivePath ./build/StikDebug.xcarchive \
-        -exportPath ./output \
-        -exportOptionsPlist export.plist
+      - name: 从xcarchive导出无签名IPA
+        run: |
+          xcodebuild -exportArchive \
+          -archivePath ./build/StikDebug.xcarchive \
+          -exportPath ./build \
+          -exportOptionsPlist <(echo '{
+            "method": "enterprise",
+            "signingStyle": "manual",
+            "provisioningProfiles": {},
+            "compileBitcode": false
+          }') CODE_SIGNING_ALLOWED=NO
 
-    - name: 上传成品IPA
-      uses: actions/upload-artifact@v4
-      with:
-        name: StikDebug成品
-        path: output/StikDebug.ipa
+      - name: 上传成品IPA
+        uses: actions/upload-artifact@v7
+        with:
+          name: StikDebug收号器
+          path: build/*.ipa
