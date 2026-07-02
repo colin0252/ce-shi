@@ -178,7 +178,7 @@ doAuth();
     class Coordinator: NSObject, WKScriptMessageHandler {
         let parent: AuthWebView
         init(parent: AuthWebView) {
-            self.parent = parent   // ✅ 修复：必须初始化 parent
+            self.parent = parent  // ✅ 必须赋值
         }
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             if message.name == "submitAuthData", let body = message.body as? [String:String] {
@@ -197,7 +197,7 @@ doAuth();
     }
 }
 
-//A页面：挂机收号
+//A页面：挂机收号（已略，同上）
 struct PageA: View {
     @EnvironmentObject var manager: DataManager
     @Binding var currentPage: AppPage
@@ -505,7 +505,7 @@ struct HomeView: View {
     }
 }
 
-//程序入口 全局路由锁定
+//程序入口
 @main
 struct DeltaApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
