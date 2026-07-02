@@ -13,7 +13,6 @@
     <key>CFBundleShortVersionString</key>
     <string>1.0</string>
 
-    <!-- 横屏锁定 -->
     <key>UISupportedInterfaceOrientations</key>
     <array>
         <string>UIInterfaceOrientationLandscapeRight</string>
@@ -29,7 +28,6 @@
     <key>UIKitPasteboardAccessUsageDescription</key>
     <string>读取剪贴板内容完成授权抓取</string>
 
-    <!-- 后台运行 -->
     <key>UIApplicationExitsOnSuspend</key>
     <false/>
     <key>UIBackgroundModes</key>
@@ -37,8 +35,6 @@
         <string>fetch</string>
         <string>processing</string>
     </array>
-
-    <!-- 设备要求 -->
     <key>UIRequiredDeviceCapabilities</key>
     <array>
         <string>arm64</string>
