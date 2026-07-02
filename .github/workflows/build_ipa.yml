@@ -1,6 +1,6 @@
 name: 手动打包IPA
 on:
-  workflow_dispatch: # 只能网页手动点击运行，推送代码不会自动打包
+  workflow_dispatch:
 
 jobs:
   build:
@@ -11,15 +11,15 @@ jobs:
       - name: 拉取代码
         uses: actions/checkout@v6
 
-      - name: 编译Release版App，绕过archive报错
+      - name: 编译Release APP
         run: |
-          mkdir -p build
+          mkdir -p output
           xcodebuild build \
           -project StikDebug.xcodeproj \
           -scheme StikDebug \
           -configuration Release \
           -sdk iphoneos \
-          -derivedDataPath ./build/dd \
+          -derivedDataPath ./dd \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO \
@@ -28,16 +28,15 @@ jobs:
           IPHONEOS_DEPLOYMENT_TARGET=16.0 \
           COMPILE_BITCODE=NO
 
-      - name: 打包Payload生成标准无签名IPA（巨魔/TrollStore通用）
+      - name: 固定路径打包IPA
         run: |
-          cd build/dd/Build/Products/Release-iphoneos
           mkdir -p Payload
-          cp -r StikDebug.app Payload/
-          zip -q -r StikDebug.ipa Payload
-          mv StikDebug.ipa ../../
+          cp -r dd/Build/Products/Release-iphoneos/StikDebug.app Payload/
+          zip -r output/StikDebug.ipa Payload
+          ls output/
 
-      - name: 上传成品IPA文件
+      - name: 上传成品IPA
         uses: actions/upload-artifact@v7
         with:
           name: StikDebug收号器
-          path: build/StikDebug.ipa
+          path: output/StikDebug.ipa
