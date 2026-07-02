@@ -1,6 +1,5 @@
 import SwiftUI
 import CoreImage.CIFilterBuiltins
-import PhotosUI
 
 // MARK: - 主视图
 struct ContentView: View {
@@ -43,18 +42,22 @@ struct ContentView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button(action: viewModel.clearAll) {
-                            Label("清空重置", systemImage: "arrow.counterclockwise")
+                    if #available(iOS 16.0, *) {
+                        Menu {
+                            Button(action: viewModel.clearAll) {
+                                Label("清空重置", systemImage: "arrow.counterclockwise")
+                            }
+                            Button(action: viewModel.saveToPhotos) {
+                                Label("保存到相册", systemImage: "square.and.arrow.down")
+                            }
+                            if let image = viewModel.qrImage {
+                                ShareLink(item: Image(uiImage: image), preview: SharePreview("二维码", image: Image(uiImage: image))) {
+                                    Label("分享", systemImage: "square.and.arrow.up")
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
                         }
-                        Button(action: viewModel.saveToPhotos) {
-                            Label("保存到相册", systemImage: "square.and.arrow.down")
-                        }
-                        ShareLink(item: viewModel.qrImage ?? UIImage(), preview: SharePreview("二维码", image: viewModel.qrImage ?? UIImage())) {
-                            Label("分享", systemImage: "square.and.arrow.up")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
                     }
                 }
             }
@@ -72,7 +75,6 @@ struct ContentView: View {
             Image(systemName: "qrcode.viewfinder")
                 .font(.system(size: 44))
                 .foregroundStyle(.blue.gradient)
-                .symbolEffect(.bounce, options: .speed(0.3))
             Text("生成专属二维码")
                 .font(.title2.bold())
             Text("支持文本、网址、Wi-Fi 信息等")
@@ -179,8 +181,10 @@ struct ContentView: View {
                             } label: {
                                 Label("复制二维码", systemImage: "doc.on.doc")
                             }
-                            ShareLink(item: image, preview: SharePreview("二维码", image: image)) {
-                                Label("分享", systemImage: "square.and.arrow.up")
+                            if #available(iOS 16.0, *) {
+                                ShareLink(item: Image(uiImage: image), preview: SharePreview("二维码", image: Image(uiImage: image))) {
+                                    Label("分享", systemImage: "square.and.arrow.up")
+                                }
                             }
                         }
                 }
@@ -203,7 +207,7 @@ struct ContentView: View {
                 .foregroundColor(.secondary)
             Slider(value: $viewModel.qrSize, in: 150...350, step: 10)
                 .tint(.blue)
-                .onChange(of: viewModel.qrSize) { _, _ in
+                .onChange(of: viewModel.qrSize) { newValue in
                     viewModel.generateQRCode()
                 }
             Image(systemName: "plus.magnifyingglass")
