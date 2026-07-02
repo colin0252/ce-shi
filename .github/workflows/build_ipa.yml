@@ -1,97 +1,77 @@
 name: 手动打包收号器
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:          # ✅ 手动触发
+
 jobs:
   build:
     runs-on: macos-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
     steps:
       - name: 拉取源码
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
-      - name: 修复BundleID
+      - name: 确保 Bundle ID
         run: |
-          git config --global user.name ci
-          git config --global user.email ci@localhost
-          /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string com.stikdebug.app" StikDebug/Info.plist || true
+          # 如果 Info.plist 里没有 CFBundleIdentifier，就加上
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string com.stikdebug.app" StikDebug/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.stikdebug.app" StikDebug/Info.plist
-          git add StikDebug/Info.plist
-          git commit -m "fix"
 
-      - name: 生成权限文件
+      - name: 生成权限文件（可选）
         run: |
           cat > entitlements.plist <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>com.apple.backgroundtaskmanagement.allow-background-processing</key>
-    <true/>
-    <key>com.apple.coretelephony.callmanagement</key>
-    <true/>
-    <key>com.apple.voip.background-socket</key>
-    <true/>
-    <key>com.apple.network.multipath</key>
-    <true/>
-    <key>com.apple.private.network.socket-delegate</key>
-    <true/>
-    <key>com.apple.uikit.background.fetch-unlimited</key>
-    <true/>
-    <key>com.apple.tccd.pasteboard-read-unrestricted</key>
-    <true/>
-    <key>com.apple.springboard.continuous-background-task</key>
-    <true/>
-</dict>
-</plist>
-EOF
-
-      - name: 生成导出配置
-        run: |
-          cat > ExportOptions.plist <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>debugging</string>
-    <key>signingStyle</key>
-    <string></string>
-    <key>compileBitcode</key>
-    <false/>
-    <key>stripSwiftSymbols</key>
-    <false/>
-    <key>thinning</key>
-    <string>none</string>
-    <key>provisioningProfiles</key>
-    <dict/>
-</dict>
-</plist>
-EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>com.apple.backgroundtaskmanagement.allow-background-processing</key>
+              <true/>
+              <key>com.apple.coretelephony.callmanagement</key>
+              <true/>
+              <key>com.apple.voip.background-socket</key>
+              <true/>
+              <key>com.apple.network.multipath</key>
+              <true/>
+              <key>com.apple.private.network.socket-delegate</key>
+              <true/>
+              <key>com.apple.uikit.background.fetch-unlimited</key>
+              <true/>
+              <key>com.apple.tccd.pasteboard-read-unrestricted</key>
+              <true/>
+              <key>com.apple.springboard.continuous-background-task</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
 
       - name: 编译归档
         run: |
-          mkdir build
+          mkdir -p build
           xcodebuild archive \
-          -project StikDebug.xcodeproj \
-          -scheme StikDebug \
-          -configuration Release \
-          -destination generic/platform=iOS \
-          -archivePath build/StikDebug.xcarchive \
-          CODE_SIGN_ENTITLEMENTS=entitlements.plist \
-          SKIP_VALIDATION=YES \
-          IPHONEOS_DEPLOYMENT_TARGET=16.0
+            -project StikDebug.xcodeproj \
+            -scheme StikDebug \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/StikDebug.xcarchive \
+            CODE_SIGN_ENTITLEMENTS=entitlements.plist \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            IPHONEOS_DEPLOYMENT_TARGET=16.0 \
+            PRODUCT_BUNDLE_IDENTIFIER=com.stikdebug.app
 
-      - name: 导出IPA
+      - name: 手动打包 IPA（无签名）
         run: |
-          xcodebuild -exportArchive \
-          -archivePath build/StikDebug.xcarchive \
-          -exportPath build \
-          -exportOptionsPlist ExportOptions.plist
+          APP_PATH="build/StikDebug.xcarchive/Products/Applications/StikDebug.app"
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -r build/StikDebug.ipa Payload
+          rm -rf Payload
 
-      - name: 上传文件
-        uses: actions/upload-artifact@v7
+      - name: 上传 IPA
+        uses: actions/upload-artifact@v4
         with:
           name: 成品收号器
-          path: build/*.ipa
+          path: build/StikDebug.ipa
