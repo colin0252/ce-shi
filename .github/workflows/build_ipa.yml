@@ -12,7 +12,7 @@ jobs:
       - name: Archive
         run: |
           xcodebuild archive \
-            -project Stik.xcodeproj \
+            -project StikDebug.xcodeproj \
             -scheme StikDebug \
             -archivePath build/StikDebug.xcarchive \
             -destination 'generic/platform=iOS' \
