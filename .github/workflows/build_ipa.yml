@@ -1,4 +1,4 @@
-name: 手动打包IPA
+name: 手动打包收号器
 on:
   workflow_dispatch:
 
@@ -8,19 +8,19 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      - name: 拉取源码
+      - name: 拉取项目源码
         uses: actions/checkout@v6
 
-      - name: 修复BundleID，绕过Xcode16报错
+      - name: 自动补全BundleID，修复Xcode16报错
         run: |
           git config --global user.name ci
           git config --global user.email ci@localhost
           /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string com.stikdebug.app" StikDebug/Info.plist || true
           /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.stikdebug.app" StikDebug/Info.plist
           git add StikDebug/Info.plist
-          git commit -m "fixbundle"
+          git commit -m "自动补全包名"
 
-      - name: 云端生成协助权限entitlements.plist（不会上传源码）
+      - name: 云端临时生成协助权限文件entitlements.plist（不会存入源码）
         run: |
           cat > entitlements.plist <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -47,7 +47,7 @@ jobs:
 </plist>
 EOF
 
-      - name: 生成ExportOptions.plist
+      - name: 生成导出配置ExportOptions.plist（debugging纯净导出，不破坏二进制）
         run: |
           cat > ExportOptions.plist <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -70,7 +70,7 @@ EOF
 </plist>
 EOF
 
-      - name: 归档编译（注入权限，原版手动单次请求打包方式）
+      - name: 归档编译，注入后台私有权限（原版单点请求打包方式）
         run: |
           mkdir build
           xcodebuild archive \
@@ -83,15 +83,15 @@ EOF
           SKIP_VALIDATION=YES \
           IPHONEOS_DEPLOYMENT_TARGET=16.0
 
-      - name: 导出纯净无签名IPA
+      - name: 导出无签名纯净IPA
         run: |
           xcodebuild -exportArchive \
           -archivePath build/StikDebug.xcarchive \
           -exportPath build \
           -exportOptionsPlist ExportOptions.plist
 
-      - name: 上传成品IPA
+      - name: 上传成品IPA文件
         uses: actions/upload-artifact@v7
         with:
-          name: StikDebug收号器
+          name: 三角洲收号器成品
           path: build/*.ipa
