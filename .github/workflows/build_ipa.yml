@@ -1,59 +1,49 @@
-name: Build Debug IPA
+name: Build Unsigned IPA
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-  workflow_dispatch:
-
-permissions:
-  contents: read
+  workflow_dispatch:          # 允许在 GitHub 网页上手动触发
 
 jobs:
   build:
-    name: Build IPA
-    runs-on: macos-latest
-    env:
-      UPLOAD_IPA: ${{ vars.UPLOAD_IPA || 'true' }}
+    runs-on: macos-latest     # 使用最新 macOS 环境
 
     steps:
-      - name: 1. Fetch Source Code
-        uses: actions/checkout@v6
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: 2. Configure Xcode Environment
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: '26.0.1'
-
-      - name: 3. Compile Project Archive
+      # ============================================================
+      # 步骤 1：Archive（生成 .xcarchive）
+      # ============================================================
+      - name: Archive
         run: |
-          xcodebuild clean archive \
+          xcodebuild archive \
             -project StikDebug.xcodeproj \
-            -scheme "StikDebug" \
-            -configuration Debug \
+            -scheme StikDebug \
             -archivePath build/StikDebug.xcarchive \
-            -sdk iphoneos \
             -destination 'generic/platform=iOS' \
-            ONLY_ACTIVE_ARCH=NO \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            SWIFT_OPTIMIZATION_LEVEL="-Onone" \
-            IPHONEOS_DEPLOYMENT_TARGET=17.4
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            PRODUCT_BUNDLE_IDENTIFIER=com.stikdebug.app
+            # ↑ 关键修改：必须明确指定 Bundle Identifier，否则会报
+            #   "Archive Missing Bundle Identifier"
 
-      - name: 4. Package .app into .ipa
+      # ============================================================
+      # 步骤 2：导出无签名 IPA
+      # ============================================================
+      - name: Export IPA
         run: |
-          cp -R build/StikDebug.xcarchive/Products/Applications/StikDebug.app .
-          mkdir -p Payload
-          cp -R StikDebug.app Payload/
-          zip -r StikDebug.ipa Payload
-          rm -rf Payload StikDebug.app
+          xcodebuild -exportArchive \
+            -archivePath build/StikDebug.xcarchive \
+            -exportPath build \
+            -exportOptionsPlist Export.plist \
+            CODE_SIGNING_ALLOWED=NO
 
-      - name: 5. Store IPA as Workflow Artifact
-        if: env.UPLOAD_IPA == 'true'
-        uses: actions/upload-artifact@v7
+      # ============================================================
+      # 步骤 3：上传 IPA 为构建产物（可选，方便下载）
+      # ============================================================
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
         with:
-          name: StikDebug-Debug.ipa
-          path: StikDebug.ipa
-          retention-days: 90
+          name: StikDebug-unsigned.ipa
+          path: build/*.ipa
