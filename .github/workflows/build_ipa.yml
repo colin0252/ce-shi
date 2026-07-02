@@ -1,8 +1,30 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>debugging</string>
-</dict>
-</plist>
+name: Build unsigned IPA
+
+on:
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    runs-on: macos-latest  # 或 macos-14 等
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build & Archive
+        run: |
+          xcodebuild archive \
+            -project YourProject.xcodeproj \
+            -scheme YourScheme \
+            -archivePath build/YourApp.xcarchive \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" 
+
+      - name: Export unsigned IPA
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/YourApp.xcarchive \
+            -exportPath build \
+            -exportOptionsPlist Export.plist \
+            CODE_SIGNING_ALLOWED=NO
