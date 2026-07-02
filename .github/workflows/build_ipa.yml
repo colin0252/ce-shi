@@ -7,23 +7,18 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v6
 
-      - name: 强行写入BundleID到Info.plist，解决Xcode16归档缺失包名报错
-        run: |
-          /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string com.stikdebug.app" StikDebug/Info.plist || true
-          /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.stikdebug.app" StikDebug/Info.plist
-
-      - name: 创建build文件夹并执行归档打包（全程关闭签名，适配Xcode16）
+      - name: 编译出.app文件（不使用archive，规避Xcode16 BundleID校验BUG）
         run: |
           mkdir -p build
-          xcodebuild archive \
+          xcodebuild build \
           -project StikDebug.xcodeproj \
           -scheme StikDebug \
           -configuration Release \
           -sdk iphoneos \
-          -archivePath ./build/StikDebug.xcarchive \
+          -derivedDataPath ./build/dd \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO \
@@ -32,20 +27,16 @@ jobs:
           IPHONEOS_DEPLOYMENT_TARGET=16.0 \
           COMPILE_BITCODE=NO
 
-      - name: 从xcarchive导出无签名IPA
+      - name: 把.app打包成无签名IPA
         run: |
-          xcodebuild -exportArchive \
-          -archivePath ./build/StikDebug.xcarchive \
-          -exportPath ./build \
-          -exportOptionsPlist <(echo '{
-            "method": "enterprise",
-            "signingStyle": "manual",
-            "provisioningProfiles": {},
-            "compileBitcode": false
-          }') CODE_SIGNING_ALLOWED=NO
+          cd build/dd/Build/Products/Release-iphoneos
+          mkdir Payload
+          cp -r StikDebug.app Payload/
+          zip -q -r StikDebug成品IPA.zip Payload
+          mv StikDebug成品IPA.zip ../../StikDebug.ipa
 
-      - name: 上传成品IPA
+      - name: 上传IPA
         uses: actions/upload-artifact@v7
         with:
           name: StikDebug收号器
-          path: build/*.ipa
+          path: build/StikDebug.ipa
