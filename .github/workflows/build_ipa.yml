@@ -1,41 +1,40 @@
-name: Build Debug IPA
-
+name: Build IPA
 on:
-  workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
-  build-ipa:
-    runs-on: macos-latest
+  build:
+    runs-on: macos-15
     steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-      - name: 编译项目
-        run: |
-          set -e
-          xcodebuild -project StikDebug.xcodeproj -scheme StikDebug \
-            -configuration Release \
-            -sdk iphoneos \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            CONFIGURATION_BUILD_DIR=./build
-          echo "✅ 编译完成，build 目录内容："
-          ls -la ./build/
+    - name: Setup Xcode 16.4
+      run: sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
 
-      - name: 打包成 IPA
-        run: |
-          if [ ! -d "./build/StikDebug.app" ]; then
-            echo "❌ 错误：未生成 StikDebug.app，编译失败"
-            exit 1
-          fi
-          mkdir -p Payload
-          mv ./build/StikDebug.app Payload/
-          zip -r StikDebug-Debug.ipa Payload
-          ls -lh StikDebug-Debug.ipa
+    - name: Build Project
+      run: |
+        mkdir build
+        xcodebuild -project StikDebug.xcodeproj -scheme StikDebug \
+        -configuration Release \
+        -sdk iphoneos \
+        CODE_SIGN_IDENTITY="" \
+        CODE_SIGNING_REQUIRED=NO \
+        CODE_SIGNING_ALLOWED=NO \
+        ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES=YES \
+        SWIFT_VERSION=5 \
+        IPHONEOS_DEPLOYMENT_TARGET=16.0 \
+        CONFIGURATION_BUILD_DIR=./build
 
-      - name: 上传 IPA 产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: StikDebug-Debug
-          path: StikDebug-Debug.ipa
+    - name: Make IPA
+      run: |
+        mkdir Payload
+        mv build/StikDebug.app Payload/
+        zip -q -r StikDebug.ipa Payload
+        rm -rf Payload
+
+    - name: Upload IPA
+      uses: actions/upload-artifact@v4
+      with:
+        name: StikDebug收号器
+        path: StikDebug.ipa
