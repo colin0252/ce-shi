@@ -22,7 +22,6 @@ struct QQConfig {
 
 // MARK: - AppDelegate（动态控制屏幕方向）
 class AppDelegate: NSObject, UIApplicationDelegate {
-    // ✅ 默认竖屏，可动态切换
     static var orientationLock = UIInterfaceOrientationMask.portrait
     
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
@@ -31,6 +30,21 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     
     func application(_ application: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
         return QQAuthManager.shared.handleCallback(url: url)
+    }
+}
+
+// MARK: - 强制旋转屏幕工具
+struct OrientationHelper {
+    static func lockPortrait() {
+        AppDelegate.orientationLock = .portrait
+        UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
+        UIViewController.attemptRotationToDeviceOrientation()
+    }
+    
+    static func lockLandscape() {
+        AppDelegate.orientationLock = .landscapeRight
+        UIDevice.current.setValue(UIInterfaceOrientation.landscapeRight.rawValue, forKey: "orientation")
+        UIViewController.attemptRotationToDeviceOrientation()
     }
 }
 
@@ -177,7 +191,7 @@ struct QQAuthView: View {
     }
 }
 
-// MARK: - 主界面（✅ 竖屏，白底）
+// MARK: - 主界面（竖屏，白底全屏）
 struct HomeView: View {
     @Binding var currentPage: AppPage
     @State private var showQQAuth = false
@@ -186,44 +200,49 @@ struct HomeView: View {
         ZStack {
             Color.white.ignoresSafeArea()
             VStack(spacing: 35) {
+                Spacer()
+                
                 Text("三角洲行动助手")
                     .font(.largeTitle).bold()
                     .foregroundColor(.black)
                 
+                Button("挂机收号（横屏）") { currentPage = .authQR }
+                    .font(.title2).padding()
+                    .frame(width: 280)
+                    .background(Color.red).foregroundColor(.white).cornerRadius(14)
+                
                 Button("QQ 扫码登录获取 Token") { showQQAuth = true }
                     .font(.title2).padding()
+                    .frame(width: 280)
                     .background(Color.orange).foregroundColor(.white).cornerRadius(14)
                 
                 Button("账号库存") { currentPage = .accountList }
                     .font(.title2).padding()
+                    .frame(width: 280)
                     .background(Color.green).foregroundColor(.white).cornerRadius(14)
                 
                 Button("Token 校验 + 一键上号") { currentPage = .tokenCheck }
                     .font(.title2).padding()
+                    .frame(width: 280)
                     .background(Color.blue).foregroundColor(.white).cornerRadius(14)
+                
+                Spacer()
             }
         }
-        .onAppear {
-            // ✅ 进入主页强制竖屏
-            AppDelegate.orientationLock = .portrait
-            UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
-            UIViewController.attemptRotationToDeviceOrientation()
-        }
+        .onAppear { OrientationHelper.lockPortrait() }
         .sheet(isPresented: $showQQAuth) {
             QQAuthView(isPresented: $showQQAuth).environmentObject(DataManager())
         }
     }
 }
 
-// MARK: - 挂机收号页面（✅ 强制横屏，白底）
+// MARK: - 挂机收号页面（强制横屏，白底全屏）
 struct PageA: View {
     @EnvironmentObject var manager: DataManager
     @Binding var currentPage: AppPage
     @State private var catchCount = 0
     @State private var qrImage = UIImage()
     @State private var session = ""
-    @State private var showAuth = false
-    @State private var authFinished = false
     @State private var clipTask: Task<Void, Never>?
     @State private var loopTask: Task<Void, Never>?
     @State private var lastPaste = ""
@@ -250,7 +269,9 @@ struct PageA: View {
                     guard let data = Data(base64Encoded: baseStr),
                           let sid = String(data: data, encoding: .utf8),
                           sid == session else { continue }
-                    await MainActor.run { showAuth = true }
+                    await MainActor.run {
+                        // 授权成功，继续轮询
+                    }
                 }
             }
         }
@@ -288,73 +309,53 @@ struct PageA: View {
     
     var body: some View {
         ZStack {
-            // ✅ 白底全屏
             Color.white.ignoresSafeArea()
             
-            HStack(spacing: 0) {
-                // 左侧信息
-                VStack(spacing: 35) {
-                    HStack {
-                        // ✅ 返回键改为返回首页，不退出
-                        Button("返回首页") {
-                            // 恢复竖屏
-                            AppDelegate.orientationLock = .portrait
-                            UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
-                            UIViewController.attemptRotationToDeviceOrientation()
-                            loopTask?.cancel()
-                            clipTask?.cancel()
-                            currentPage = .home
-                        }
-                        .foregroundColor(.blue)
-                        Spacer()
+            VStack(spacing: 0) {
+                // 顶部返回按钮
+                HStack {
+                    Button("← 返回首页") {
+                        OrientationHelper.lockPortrait()
+                        loopTask?.cancel()
+                        clipTask?.cancel()
+                        currentPage = .home
                     }
-                    .padding(.leading, 20)
-                    
-                    Spacer()
-                    
-                    Text("三角洲")
-                        .font(.system(size: 52, weight: .bold))
-                        .foregroundColor(.black)
-                    
-                    Text("今日已抓取账号：\(catchCount) 个")
-                        .foregroundColor(.gray)
-                        .font(.system(size: 22))
-                    
+                    .foregroundColor(.blue)
+                    .font(.system(size: 18))
                     Spacer()
                 }
-                .frame(width: UIScreen.main.bounds.width * 0.45)
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
                 
-                // 右侧二维码
-                VStack {
-                    Spacer()
-                    Image(uiImage: qrImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 290, height: 290)
-                    Spacer()
-                }
-                .frame(width: UIScreen.main.bounds.width * 0.55)
+                Spacer()
+                
+                // 中间：二维码（全屏居中）
+                Image(uiImage: qrImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 300, height: 300)
+                
+                Text("已抓取：\(catchCount) 个账号")
+                    .foregroundColor(.gray)
+                    .font(.system(size: 20))
+                    .padding(.top, 20)
+                
+                Spacer()
             }
         }
         .onAppear {
-            // ✅ 进入挂机页面强制横屏
-            AppDelegate.orientationLock = .landscapeRight
-            UIDevice.current.setValue(UIInterfaceOrientation.landscapeRight.rawValue, forKey: "orientation")
-            UIViewController.attemptRotationToDeviceOrientation()
+            OrientationHelper.lockLandscape()
             newSession()
         }
         .onDisappear {
             loopTask?.cancel()
             clipTask?.cancel()
-            // ✅ 离开时恢复竖屏
-            AppDelegate.orientationLock = .portrait
-            UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
-            UIViewController.attemptRotationToDeviceOrientation()
+            OrientationHelper.lockPortrait()
         }
     }
 }
 
-// MARK: - 账号库存页面（✅ 竖屏，白底）
+// MARK: - 账号库存页面（竖屏，白底全屏）
 struct PageB: View {
     @EnvironmentObject var manager: DataManager
     @Binding var currentPage: AppPage
@@ -363,33 +364,26 @@ struct PageB: View {
         ZStack {
             Color.white.ignoresSafeArea()
             
-            VStack {
+            VStack(spacing: 0) {
                 HStack {
-                    Button("返回首页") { currentPage = .home }
+                    Button("← 返回首页") { currentPage = .home }
                         .foregroundColor(.blue)
                     Spacer()
                 }
                 .padding()
                 
-                Text("账号库存管理")
+                Text("账号库存")
+                    .font(.title).bold()
                     .foregroundColor(.black)
-                    .font(.title)
-                    .bold()
                 
                 List(manager.accounts) { acc in
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("OpenID：\(acc.openid)")
-                            .foregroundColor(.black)
-                        Text("Token：\(String(acc.seecoon_token.prefix(20)))...")
-                            .font(.system(size: 10))
-                            .foregroundColor(.gray)
-                        HStack(spacing: 15) {
-                            Button("复制Token") {
-                                UIPasteboard.general.string = acc.seecoon_token
-                            }
-                            Button("删除账号", role: .destructive) {
-                                manager.deleteAccount(uuid: acc.id)
-                            }
+                        Text("OpenID: \(acc.openid)").foregroundColor(.black)
+                        Text("Token: \(String(acc.seecoon_token.prefix(20)))...")
+                            .font(.system(size: 10)).foregroundColor(.gray)
+                        HStack {
+                            Button("复制") { UIPasteboard.general.string = acc.seecoon_token }
+                            Button("删除", role: .destructive) { manager.deleteAccount(uuid: acc.id) }
                         }
                     }
                     .padding(.vertical, 5)
@@ -397,14 +391,11 @@ struct PageB: View {
                 .listStyle(.plain)
             }
         }
-        .onAppear {
-            // ✅ 确保竖屏
-            AppDelegate.orientationLock = .portrait
-        }
+        .onAppear { OrientationHelper.lockPortrait() }
     }
 }
 
-// MARK: - Token 校验与上号（✅ 竖屏，白底，本地校验）
+// MARK: - Token 校验与上号（竖屏，白底全屏）
 struct PageC: View {
     @Binding var currentPage: AppPage
     @State var token = ""
@@ -416,7 +407,7 @@ struct PageC: View {
             
             VStack(spacing: 22) {
                 HStack {
-                    Button("返回首页") { currentPage = .home }
+                    Button("← 返回首页") { currentPage = .home }
                         .foregroundColor(.blue)
                     Spacer()
                 }
@@ -438,9 +429,8 @@ struct PageC: View {
                 
                 Text(status)
                     .foregroundColor(status.contains("✅") ? .green : .red)
-                    .font(.system(size: 16))
                 
-                Button("一键唤起三角洲登录") {
+                Button("一键上号") {
                     UIApplication.shared.open(URL(string: "seecoon://login?token=\(token)")!)
                 }
                 .disabled(token.isEmpty)
@@ -453,20 +443,16 @@ struct PageC: View {
             }
             .padding(.top, 20)
         }
-        .onAppear {
-            // ✅ 确保竖屏
-            AppDelegate.orientationLock = .portrait
-        }
+        .onAppear { OrientationHelper.lockPortrait() }
     }
     
-    // ✅ 本地校验
     func check() {
         if token.isEmpty {
             status = "❌ 请输入 Token"
         } else if token.count > 80 {
-            status = "✅ Token 格式有效（请用一键上号验证实际可用性）"
+            status = "✅ Token 格式有效"
         } else {
-            status = "❌ Token 格式无效，请检查后重试"
+            status = "❌ Token 格式无效"
         }
     }
 }
@@ -483,21 +469,12 @@ struct DeltaApp: App {
             if #available(iOS 16.4, *) {
                 switch currentPage {
                 case .home:
-                    HomeView(currentPage: $currentPage)
-                        .environmentObject(manager)
-                    
+                    HomeView(currentPage: $currentPage).environmentObject(manager)
                 case .authQR:
-                    // ✅ A页面：挂机收号（强制横屏）
-                    PageA(currentPage: $currentPage)
-                        .environmentObject(manager)
-                    
+                    PageA(currentPage: $currentPage).environmentObject(manager)
                 case .accountList:
-                    // ✅ B页面：账号库存（竖屏）
-                    PageB(currentPage: $currentPage)
-                        .environmentObject(manager)
-                    
+                    PageB(currentPage: $currentPage).environmentObject(manager)
                 case .tokenCheck:
-                    // ✅ C页面：Token校验（竖屏）
                     PageC(currentPage: $currentPage)
                 }
             }
