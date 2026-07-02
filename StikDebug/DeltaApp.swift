@@ -191,42 +191,58 @@ struct QQAuthView: View {
     }
 }
 
-// MARK: - 主界面（竖屏，白底全屏）
+// MARK: - 主界面（竖屏，白底全屏，19.5:9 适配）
 struct HomeView: View {
     @Binding var currentPage: AppPage
     @State private var showQQAuth = false
     
     var body: some View {
-        ZStack {
-            Color.white.ignoresSafeArea()
-            VStack(spacing: 35) {
-                Spacer()
+        GeometryReader { geo in
+            ZStack {
+                Color.white.ignoresSafeArea()
                 
-                Text("三角洲行动助手")
-                    .font(.largeTitle).bold()
-                    .foregroundColor(.black)
-                
-                Button("挂机收号（横屏）") { currentPage = .authQR }
-                    .font(.title2).padding()
-                    .frame(width: 280)
-                    .background(Color.red).foregroundColor(.white).cornerRadius(14)
-                
-                Button("QQ 扫码登录获取 Token") { showQQAuth = true }
-                    .font(.title2).padding()
-                    .frame(width: 280)
-                    .background(Color.orange).foregroundColor(.white).cornerRadius(14)
-                
-                Button("账号库存") { currentPage = .accountList }
-                    .font(.title2).padding()
-                    .frame(width: 280)
-                    .background(Color.green).foregroundColor(.white).cornerRadius(14)
-                
-                Button("Token 校验 + 一键上号") { currentPage = .tokenCheck }
-                    .font(.title2).padding()
-                    .frame(width: 280)
-                    .background(Color.blue).foregroundColor(.white).cornerRadius(14)
-                
-                Spacer()
+                VStack(spacing: 0) {
+                    Spacer()
+                    
+                    // 标题
+                    Text("三角洲行动助手")
+                        .font(.system(size: geo.size.width * 0.08, weight: .bold))
+                        .foregroundColor(.black)
+                        .padding(.bottom, geo.size.height * 0.05)
+                    
+                    // 按钮组
+                    VStack(spacing: geo.size.height * 0.025) {
+                        Button("挂机收号（横屏）") { currentPage = .authQR }
+                            .font(.system(size: geo.size.width * 0.05, weight: .medium))
+                            .foregroundColor(.white)
+                            .frame(width: geo.size.width * 0.75, height: geo.size.height * 0.08)
+                            .background(Color.red)
+                            .cornerRadius(14)
+                        
+                        Button("QQ 扫码登录获取 Token") { showQQAuth = true }
+                            .font(.system(size: geo.size.width * 0.05, weight: .medium))
+                            .foregroundColor(.white)
+                            .frame(width: geo.size.width * 0.75, height: geo.size.height * 0.08)
+                            .background(Color.orange)
+                            .cornerRadius(14)
+                        
+                        Button("账号库存") { currentPage = .accountList }
+                            .font(.system(size: geo.size.width * 0.05, weight: .medium))
+                            .foregroundColor(.white)
+                            .frame(width: geo.size.width * 0.75, height: geo.size.height * 0.08)
+                            .background(Color.green)
+                            .cornerRadius(14)
+                        
+                        Button("Token 校验 + 一键上号") { currentPage = .tokenCheck }
+                            .font(.system(size: geo.size.width * 0.05, weight: .medium))
+                            .foregroundColor(.white)
+                            .frame(width: geo.size.width * 0.75, height: geo.size.height * 0.08)
+                            .background(Color.blue)
+                            .cornerRadius(14)
+                    }
+                    
+                    Spacer()
+                }
             }
         }
         .onAppear { OrientationHelper.lockPortrait() }
@@ -236,7 +252,7 @@ struct HomeView: View {
     }
 }
 
-// MARK: - 挂机收号页面（强制横屏，白底全屏）
+// MARK: - 挂机收号页面（强制横屏，白底全屏，19.5:9 适配）
 struct PageA: View {
     @EnvironmentObject var manager: DataManager
     @Binding var currentPage: AppPage
@@ -269,9 +285,7 @@ struct PageA: View {
                     guard let data = Data(base64Encoded: baseStr),
                           let sid = String(data: data, encoding: .utf8),
                           sid == session else { continue }
-                    await MainActor.run {
-                        // 授权成功，继续轮询
-                    }
+                    await MainActor.run {}
                 }
             }
         }
@@ -308,39 +322,44 @@ struct PageA: View {
     }
     
     var body: some View {
-        ZStack {
-            Color.white.ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                // 顶部返回按钮
-                HStack {
-                    Button("← 返回首页") {
-                        OrientationHelper.lockPortrait()
-                        loopTask?.cancel()
-                        clipTask?.cancel()
-                        currentPage = .home
+        GeometryReader { geo in
+            ZStack {
+                Color.white.ignoresSafeArea()
+                
+                VStack(spacing: 0) {
+                    // 顶部返回按钮
+                    HStack {
+                        Button("← 返回首页") {
+                            OrientationHelper.lockPortrait()
+                            loopTask?.cancel()
+                            clipTask?.cancel()
+                            currentPage = .home
+                        }
+                        .foregroundColor(.blue)
+                        .font(.system(size: geo.size.width * 0.035))
+                        Spacer()
                     }
-                    .foregroundColor(.blue)
-                    .font(.system(size: 18))
+                    .padding(.horizontal, geo.size.width * 0.05)
+                    .padding(.top, geo.size.height * 0.02)
+                    
+                    Spacer()
+                    
+                    // 二维码（19.5:9 适配）
+                    Image(uiImage: qrImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(
+                            width: min(geo.size.width * 0.35, geo.size.height * 0.6),
+                            height: min(geo.size.width * 0.35, geo.size.height * 0.6)
+                        )
+                    
+                    Text("已抓取：\(catchCount) 个账号")
+                        .foregroundColor(.gray)
+                        .font(.system(size: geo.size.width * 0.035))
+                        .padding(.top, geo.size.height * 0.03)
+                    
                     Spacer()
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 10)
-                
-                Spacer()
-                
-                // 中间：二维码（全屏居中）
-                Image(uiImage: qrImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 300, height: 300)
-                
-                Text("已抓取：\(catchCount) 个账号")
-                    .foregroundColor(.gray)
-                    .font(.system(size: 20))
-                    .padding(.top, 20)
-                
-                Spacer()
             }
         }
         .onAppear {
@@ -355,93 +374,116 @@ struct PageA: View {
     }
 }
 
-// MARK: - 账号库存页面（竖屏，白底全屏）
+// MARK: - 账号库存页面（竖屏，白底全屏，19.5:9 适配）
 struct PageB: View {
     @EnvironmentObject var manager: DataManager
     @Binding var currentPage: AppPage
     
     var body: some View {
-        ZStack {
-            Color.white.ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                HStack {
-                    Button("← 返回首页") { currentPage = .home }
-                        .foregroundColor(.blue)
-                    Spacer()
-                }
-                .padding()
+        GeometryReader { geo in
+            ZStack {
+                Color.white.ignoresSafeArea()
                 
-                Text("账号库存")
-                    .font(.title).bold()
-                    .foregroundColor(.black)
-                
-                List(manager.accounts) { acc in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("OpenID: \(acc.openid)").foregroundColor(.black)
-                        Text("Token: \(String(acc.seecoon_token.prefix(20)))...")
-                            .font(.system(size: 10)).foregroundColor(.gray)
-                        HStack {
-                            Button("复制") { UIPasteboard.general.string = acc.seecoon_token }
-                            Button("删除", role: .destructive) { manager.deleteAccount(uuid: acc.id) }
-                        }
+                VStack(spacing: 0) {
+                    HStack {
+                        Button("← 返回首页") { currentPage = .home }
+                            .foregroundColor(.blue)
+                            .font(.system(size: geo.size.width * 0.04))
+                        Spacer()
                     }
-                    .padding(.vertical, 5)
+                    .padding(.horizontal, geo.size.width * 0.05)
+                    .padding(.top, geo.size.height * 0.02)
+                    
+                    Text("账号库存")
+                        .font(.system(size: geo.size.width * 0.06, weight: .bold))
+                        .foregroundColor(.black)
+                        .padding(.vertical, geo.size.height * 0.02)
+                    
+                    List(manager.accounts) { acc in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("OpenID: \(acc.openid)")
+                                .foregroundColor(.black)
+                                .font(.system(size: geo.size.width * 0.035))
+                            Text("Token: \(String(acc.seecoon_token.prefix(20)))...")
+                                .font(.system(size: geo.size.width * 0.028))
+                                .foregroundColor(.gray)
+                            HStack {
+                                Button("复制") { UIPasteboard.general.string = acc.seecoon_token }
+                                    .font(.system(size: geo.size.width * 0.032))
+                                Button("删除", role: .destructive) { manager.deleteAccount(uuid: acc.id) }
+                                    .font(.system(size: geo.size.width * 0.032))
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .listStyle(.plain)
                 }
-                .listStyle(.plain)
             }
         }
         .onAppear { OrientationHelper.lockPortrait() }
     }
 }
 
-// MARK: - Token 校验与上号（竖屏，白底全屏）
+// MARK: - Token 校验与上号（竖屏，白底全屏，19.5:9 适配）
 struct PageC: View {
     @Binding var currentPage: AppPage
     @State var token = ""
     @State var status = ""
     
     var body: some View {
-        ZStack {
-            Color.white.ignoresSafeArea()
-            
-            VStack(spacing: 22) {
-                HStack {
-                    Button("← 返回首页") { currentPage = .home }
-                        .foregroundColor(.blue)
+        GeometryReader { geo in
+            ZStack {
+                Color.white.ignoresSafeArea()
+                
+                VStack(spacing: 0) {
+                    HStack {
+                        Button("← 返回首页") { currentPage = .home }
+                            .foregroundColor(.blue)
+                            .font(.system(size: geo.size.width * 0.04))
+                        Spacer()
+                    }
+                    .padding(.horizontal, geo.size.width * 0.05)
+                    .padding(.top, geo.size.height * 0.02)
+                    
+                    Spacer()
+                    
+                    Text("Token 校验与一键上号")
+                        .font(.system(size: geo.size.width * 0.06, weight: .bold))
+                        .foregroundColor(.black)
+                        .padding(.bottom, geo.size.height * 0.03)
+                    
+                    TextField("粘贴 Seecoon Token", text: $token)
+                        .textFieldStyle(.roundedBorder)
+                        .padding(.horizontal, geo.size.width * 0.1)
+                        .font(.system(size: geo.size.width * 0.04))
+                    
+                    Button("校验有效性") { check() }
+                        .foregroundColor(.white)
+                        .font(.system(size: geo.size.width * 0.04))
+                        .frame(width: geo.size.width * 0.6, height: geo.size.height * 0.06)
+                        .background(Color.blue)
+                        .cornerRadius(10)
+                        .padding(.top, geo.size.height * 0.02)
+                    
+                    Text(status)
+                        .foregroundColor(status.contains("✅") ? .green : .red)
+                        .font(.system(size: geo.size.width * 0.035))
+                        .padding(.top, geo.size.height * 0.01)
+                    
+                    Button("一键上号") {
+                        UIApplication.shared.open(URL(string: "seecoon://login?token=\(token)")!)
+                    }
+                    .disabled(token.isEmpty)
+                    .foregroundColor(.white)
+                    .font(.system(size: geo.size.width * 0.04))
+                    .frame(width: geo.size.width * 0.6, height: geo.size.height * 0.06)
+                    .background(Color.orange)
+                    .cornerRadius(10)
+                    .padding(.top, geo.size.height * 0.01)
+                    
                     Spacer()
                 }
-                .padding()
-                
-                Text("Token 校验与一键上号")
-                    .font(.title2).bold()
-                    .foregroundColor(.black)
-                
-                TextField("粘贴 Seecoon Token", text: $token)
-                    .textFieldStyle(.roundedBorder)
-                    .padding(.horizontal, 20)
-                
-                Button("校验有效性") { check() }
-                    .foregroundColor(.white)
-                    .padding()
-                    .background(Color.blue)
-                    .cornerRadius(10)
-                
-                Text(status)
-                    .foregroundColor(status.contains("✅") ? .green : .red)
-                
-                Button("一键上号") {
-                    UIApplication.shared.open(URL(string: "seecoon://login?token=\(token)")!)
-                }
-                .disabled(token.isEmpty)
-                .foregroundColor(.white)
-                .padding()
-                .background(Color.orange)
-                .cornerRadius(10)
-                
-                Spacer()
             }
-            .padding(.top, 20)
         }
         .onAppear { OrientationHelper.lockPortrait() }
     }
