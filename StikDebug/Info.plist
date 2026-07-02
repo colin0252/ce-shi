@@ -7,18 +7,25 @@
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleName</key>
-    <string>三角洲</string>
+    <string>三角洲行动助手</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>CFBundleShortVersionString</key>
     <string>1.0</string>
 
+    <!-- 支持竖屏和横屏 -->
     <key>UISupportedInterfaceOrientations</key>
     <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
         <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
 
-    <!-- 回调 URL Scheme -->
+    <!-- QQ 互联回调 URL Scheme -->
     <key>CFBundleURLTypes</key>
     <array>
         <dict>
@@ -31,13 +38,31 @@
         </dict>
     </array>
 
+    <!-- 剪贴板权限 -->
     <key>NSPasteboardUsageDescription</key>
     <string>读取剪贴板识别扫码信息</string>
+    <key>UIKitPasteboardAccessUsageDescription</key>
+    <string>读取剪贴板内容完成授权抓取</string>
+
+    <!-- 后台运行 -->
     <key>UIApplicationExitsOnSuspend</key>
     <false/>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>fetch</string>
+        <string>processing</string>
+    </array>
+
+    <!-- 设备要求 -->
     <key>UIRequiredDeviceCapabilities</key>
     <array>
         <string>arm64</string>
     </array>
+
+    <!-- 状态栏样式 -->
+    <key>UIStatusBarStyle</key>
+    <string>UIStatusBarStyleDefault</string>
+    <key>UIViewControllerBasedStatusBarAppearance</key>
+    <false/>
 </dict>
 </plist>
