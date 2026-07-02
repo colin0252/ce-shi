@@ -108,7 +108,7 @@ class DataManager: ObservableObject {
 // MARK: - 页面路由
 enum AppPage { case home, pageA, pageB, pageC }
 
-// MARK: - QQ 内部授权网页（seecoon 依赖）
+// MARK: - QQ 内部授权网页（依赖 seecoon 接口）
 struct AuthWebView: UIViewRepresentable {
     let sessionID: String
     @Binding var authComplete: Bool
@@ -150,6 +150,7 @@ struct AuthWebView: UIViewRepresentable {
     
     class Coordinator: NSObject, WKScriptMessageHandler {
         let parent: AuthWebView
+        // ✅ 修复点：必须初始化 parent 属性
         init(parent: AuthWebView) { self.parent = parent }
         
         func userContentController(_ userContentController: WKUserContentController,
@@ -168,7 +169,7 @@ struct AuthWebView: UIViewRepresentable {
     }
 }
 
-// MARK: - 挂机收号页面（修改了二维码生成部分）
+// MARK: - 挂机收号页面（剪贴板方案）
 struct PageA: View {
     @EnvironmentObject var manager: DataManager
     @Binding var currentPage: AppPage
@@ -181,20 +182,16 @@ struct PageA: View {
     @State private var loopTask: Task<Void, Never>?
     @State private var lastPaste = ""
     
+    // 🔥 修改点：生成自定义协议二维码，QQ 扫完提示复制，而非打不开的链接
     func newSession() {
         loopTask?.cancel()
         clipTask?.cancel()
         session = UUID().uuidString
         
-        // ✅ 修改点：将二维码内容改成 HTTPS 链接，QQ 扫码后可直接打开网页
-        // 假设 seecoon 提供了一个扫码登录页面，例如 /api/login/scan
-        let scanURL = "https://game.seecoon.com/api/login/scan?session=\(session)"
-        qrImage = QRGenerator.createQRCode(text: scanURL)
-        
-        // 备用方案（如果 HTTPS 链接无效，QQ 无法识别，可以改回自定义协议 + 剪贴板）：
-        // let base64Session = Data(session.utf8).base64EncodedString()
-        // let customProtocol = "open://authdata/\(base64Session)"
-        // qrImage = QRGenerator.createQRCode(text: customProtocol)
+        // 将 session 转为 base64，再嵌到 open://authdata/ 协议中
+        let base64Session = Data(session.utf8).base64EncodedString()
+        let customProtocol = "open://authdata/\(base64Session)"
+        qrImage = QRGenerator.createQRCode(text: customProtocol)
         
         startClipboard()
         startPolling()
