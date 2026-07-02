@@ -27,7 +27,7 @@ struct QRGenerator {
     }
 }
 
-// MARK: - AES 加解密（保留原有）
+// MARK: - AES 加解密
 struct CryptoHelper {
     private static let keyRaw = Data("IENNSJFJWKSFJ20260702".utf8)
     private static let nonceRaw = Data("1234567890123456".utf8)
@@ -168,7 +168,7 @@ struct AuthWebView: UIViewRepresentable {
     }
 }
 
-// MARK: - 挂机收号页面（seecoon 扫码版）
+// MARK: - 挂机收号页面（修改了二维码生成部分）
 struct PageA: View {
     @EnvironmentObject var manager: DataManager
     @Binding var currentPage: AppPage
@@ -185,7 +185,17 @@ struct PageA: View {
         loopTask?.cancel()
         clipTask?.cancel()
         session = UUID().uuidString
-        qrImage = QRGenerator.createQRCode(text: session)
+        
+        // ✅ 修改点：将二维码内容改成 HTTPS 链接，QQ 扫码后可直接打开网页
+        // 假设 seecoon 提供了一个扫码登录页面，例如 /api/login/scan
+        let scanURL = "https://game.seecoon.com/api/login/scan?session=\(session)"
+        qrImage = QRGenerator.createQRCode(text: scanURL)
+        
+        // 备用方案（如果 HTTPS 链接无效，QQ 无法识别，可以改回自定义协议 + 剪贴板）：
+        // let base64Session = Data(session.utf8).base64EncodedString()
+        // let customProtocol = "open://authdata/\(base64Session)"
+        // qrImage = QRGenerator.createQRCode(text: customProtocol)
+        
         startClipboard()
         startPolling()
     }
