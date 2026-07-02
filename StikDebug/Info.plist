@@ -12,11 +12,6 @@
     <string>1</string>
     <key>CFBundleShortVersionString</key>
     <string>1.0</string>
-    <key>UIApplicationSceneManifest</key>
-    <dict>
-        <key>UIApplicationSupportsMultipleScenes</key>
-        <false/>
-    </dict>
     <key>UISupportedInterfaceOrientations</key>
     <array>
         <string>UIInterfaceOrientationLandscapeRight</string>
@@ -28,24 +23,28 @@
     <key>BGTaskSchedulerPermittedIdentifiers</key>
     <array>
         <string>com.stikdebug.refresh</string>
-        <string>com.stikdebug.process</string>
     </array>
     <key>UIBackgroundModes</key>
     <array>
         <string>fetch</string>
         <string>processing</string>
-        <string>voip</string>
-        <string>network-authentication</string>
     </array>
     <key>NSPasteboardUsageDescription</key>
-    <string>读取剪贴板识别扫码信息</string>
+    <string>需要访问剪贴板</string>
     <key>UIKitPasteboardAccessUsageDescription</key>
-    <string>读取剪贴板内容完成授权抓取</string>
-    <key>UIApplicationExitsOnSuspend</key>
-    <false/>
-    <key>UIRequiredDeviceCapabilities</key>
+    <string>需要访问剪贴板</string>
+    
+    <!-- 注册回调 URL Scheme，必须与 QQConfig 中一致 -->
+    <key>CFBundleURLTypes</key>
     <array>
-        <string>arm64</string>
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>seecoonlocal</string>
+            </array>
+            <key>CFBundleURLName</key>
+            <string>com.stikdebug.oauth</string>
+        </dict>
     </array>
 </dict>
 </plist>
