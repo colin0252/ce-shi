@@ -456,3 +456,15 @@ struct DeltaApp: App {
         }
     }
 }
+// 找到 DeltaApp.swift 文件的最后部分，改成这样：
+
+// MARK: - App入口
+@main
+struct DeltaApp: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .ignoresSafeArea(.all)  // ✅ 添加这一行
+        }
+    }
+}
