@@ -26,21 +26,20 @@ class GameLoginManager: ObservableObject {
     @Published var message: String = ""
     @Published var messageType: MessageType = .info
     @Published var showMessage: Bool = false
-    
+
     enum MessageType {
         case info, success, warning, error
     }
-    
+
     private let userDefaults = UserDefaults.standard
     private let accountsKey = "game_accounts"
     private let tokensKey = "token_records"
-    
+
     init() {
         loadAccounts()
         loadTokens()
     }
-    
-    // 显示消息并自动隐藏
+
     private func show(_ text: String, type: MessageType) {
         message = text
         messageType = type
@@ -49,7 +48,7 @@ class GameLoginManager: ObservableObject {
             self?.showMessage = false
         }
     }
-    
+
     // 储存Token
     func saveToken(_ token: String, source: String = "手动输入") {
         guard !token.isEmpty else { return }
@@ -63,18 +62,18 @@ class GameLoginManager: ObservableObject {
         if currentToken.isEmpty { selectToken(token) }
         show("Token已储存", type: .success)
     }
-    
+
     func selectToken(_ token: String) {
         currentToken = token
         isLoggedIn = true
         show("已切换Token", type: .success)
     }
-    
+
     func copyToken(_ token: String) {
         UIPasteboard.general.string = token
         show("已复制", type: .success)
     }
-    
+
     func deleteToken(id: String) {
         if let record = tokenRecords.first(where: { $0.id == id }), record.token == currentToken {
             currentToken = ""
@@ -84,7 +83,7 @@ class GameLoginManager: ObservableObject {
         saveTokens()
         show("已删除", type: .info)
     }
-    
+
     func clearAllTokens() {
         tokenRecords.removeAll()
         currentToken = ""
@@ -92,7 +91,7 @@ class GameLoginManager: ObservableObject {
         saveTokens()
         show("已清空", type: .info)
     }
-    
+
     // 检测Token
     func checkToken(_ token: String, completion: @escaping (Bool) -> Void) {
         show("正在检测...", type: .info)
@@ -102,8 +101,8 @@ class GameLoginManager: ObservableObject {
             completion(valid)
         }
     }
-    
-    // 登录游戏 - 核心方法
+
+    // 登录游戏
     func loginGame(gameName: String, gameCode: String, token: String? = nil) {
         let tokenToUse = token ?? currentToken
         guard !tokenToUse.isEmpty else {
@@ -111,7 +110,7 @@ class GameLoginManager: ObservableObject {
             return
         }
         show("正在登录\(gameName)...", type: .info)
-        
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             guard let self = self else { return }
             let newAccount = GameAccount(
@@ -126,60 +125,60 @@ class GameLoginManager: ObservableObject {
             self.show("\(gameName)登录成功！", type: .success)
         }
     }
-    
+
     func copyAccountUID(_ uid: String) {
         UIPasteboard.general.string = uid
         show("UID已复制", type: .success)
     }
-    
+
     func deleteAccount(id: String) {
         accounts.removeAll { $0.id == id }
         saveAccounts()
         show("已删除", type: .info)
     }
-    
+
     func clearAllAccounts() {
         accounts.removeAll()
         saveAccounts()
         show("已清空", type: .info)
     }
-    
+
     private func saveAccounts() {
         if let data = try? JSONEncoder().encode(accounts) {
             userDefaults.set(data, forKey: accountsKey)
         }
     }
-    
+
     private func loadAccounts() {
         if let data = userDefaults.data(forKey: accountsKey),
            let decoded = try? JSONDecoder().decode([GameAccount].self, from: data) {
             accounts = decoded
         }
     }
-    
+
     private func saveTokens() {
         if let data = try? JSONEncoder().encode(tokenRecords) {
             userDefaults.set(data, forKey: tokensKey)
         }
     }
-    
+
     private func loadTokens() {
         if let data = userDefaults.data(forKey: tokensKey),
            let decoded = try? JSONDecoder().decode([TokenRecord].self, from: data) {
             tokenRecords = decoded
         }
     }
-    
+
     private func getCurrentTimeString() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         return formatter.string(from: Date())
     }
-    
+
     func generateQRCodeURL() -> String {
         return "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=QQ_LOGIN&color=000&bgcolor=fff"
     }
-    
+
     func simulateQRCodeScan() {
         let chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
         let token = "QQ_" + String((0..<32).map { _ in chars.randomElement()! })
@@ -187,40 +186,100 @@ class GameLoginManager: ObservableObject {
     }
 }
 
-// MARK: - App入口
+// MARK: - App 入口（使用 NavigationView 支持侧滑返回）
 @main
 struct DeltaApp: App {
     var body: some Scene {
         WindowGroup {
-            MainTabView()
-                .ignoresSafeArea(.all)
+            NavigationView {
+                HomeView()
+            }
+            .navigationViewStyle(.stack)
+            .ignoresSafeArea(.all)
         }
     }
 }
 
-// MARK: - 主页面
-struct MainTabView: View {
-    @State private var selectedTab = 0
-    
+// MARK: - 首页
+struct HomeView: View {
+    @StateObject private var manager = GameLoginManager()
+
     var body: some View {
         ZStack {
-            switch selectedTab {
-            case 0: HomeView(selectedTab: $selectedTab)
-            case 1: QRCodeView(selectedTab: $selectedTab)
-            case 2: TokenManageView(selectedTab: $selectedTab)
-            case 3: GameLoginView(selectedTab: $selectedTab)
-            case 4: ExtractTokenView(selectedTab: $selectedTab)
-            default: HomeView(selectedTab: $selectedTab)
+            LinearGradient(colors: [
+                Color(red: 0.06, green: 0.06, blue: 0.12),
+                Color(red: 0.10, green: 0.10, blue: 0.20),
+                Color(red: 0.06, green: 0.06, blue: 0.12)
+            ], startPoint: .top, endPoint: .bottom)
+            .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                Spacer()
+                VStack(spacing: 8) {
+                    Image(systemName: "gamecontroller.fill").font(.system(size: 50)).foregroundColor(.white)
+                    Text("游戏账号管理").font(.title).fontWeight(.bold).foregroundColor(.white)
+                    Text("StikDebug").font(.subheadline).foregroundColor(.white.opacity(0.6))
+                }
+                Spacer().frame(height: 60)
+
+                VStack(spacing: 16) {
+                    NavigationLink(destination: QRCodeView()) {
+                        HomeButtonContent(icon: "qrcode", color: .blue, title: "QQ扫码登录", subtitle: "使用手机QQ扫描二维码获取Token")
+                    }
+                    NavigationLink(destination: TokenManageView()) {
+                        HomeButtonContent(icon: "list.clipboard.fill", color: .orange, title: "Token管理", subtitle: "储存Token · 一键复制 · 删除", badge: "\(manager.tokenRecords.count)")
+                    }
+                    NavigationLink(destination: GameLoginView()) {
+                        HomeButtonContent(icon: "play.circle.fill", color: .green, title: "游戏登录", subtitle: "三角洲行动 / 暗区突围 / 和平精英")
+                    }
+                    NavigationLink(destination: ExtractTokenView()) {
+                        HomeButtonContent(icon: "arrow.down.doc.fill", color: .purple, title: "提取Token", subtitle: "从剪贴板或链接提取Token")
+                    }
+                }
+                .padding(.horizontal, 24)
+                Spacer()
+                Text("v1.0.0").font(.caption).foregroundColor(.white.opacity(0.3)).padding(.bottom, 30)
             }
         }
+        .navigationBarHidden(true)
     }
 }
 
-// MARK: - 消息提示视图（通用）
+struct HomeButtonContent: View {
+    let icon: String
+    let color: Color
+    let title: String
+    let subtitle: String
+    var badge: String? = nil
+
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon).font(.system(size: 26)).foregroundColor(.white)
+                .frame(width: 46, height: 46)
+                .background(color.opacity(0.3)).clipShape(RoundedRectangle(cornerRadius: 12))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.headline).foregroundColor(.white)
+                Text(subtitle).font(.caption).foregroundColor(.white.opacity(0.5))
+            }
+            Spacer()
+            if let badge = badge {
+                Text(badge).font(.caption).foregroundColor(.white).padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(color).clipShape(Capsule())
+            }
+            Image(systemName: "chevron.right").foregroundColor(.white.opacity(0.4))
+        }
+        .padding(18)
+        .background(Color.white.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
+        .cornerRadius(16)
+    }
+}
+
+// MARK: - 通用消息横幅
 struct MessageBanner: View {
     let message: String
     let type: GameLoginManager.MessageType
-    
+
     var bgColor: Color {
         switch type {
         case .info: return Color.blue.opacity(0.9)
@@ -229,7 +288,7 @@ struct MessageBanner: View {
         case .error: return Color.red.opacity(0.9)
         }
     }
-    
+
     var icon: String {
         switch type {
         case .info: return "info.circle.fill"
@@ -238,12 +297,11 @@ struct MessageBanner: View {
         case .error: return "xmark.circle.fill"
         }
     }
-    
+
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
-            Text(message)
-                .font(.subheadline)
+            Text(message).font(.subheadline)
         }
         .foregroundColor(.white)
         .padding()
@@ -255,90 +313,20 @@ struct MessageBanner: View {
     }
 }
 
-// MARK: - 首页
-struct HomeView: View {
-    @Binding var selectedTab: Int
-    @StateObject private var manager = GameLoginManager()
-    
-    var body: some View {
-        ZStack {
-            LinearGradient(colors: [Color(red: 0.06, green: 0.06, blue: 0.12), Color(red: 0.10, green: 0.10, blue: 0.20), Color(red: 0.06, green: 0.06, blue: 0.12)], startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                Spacer()
-                VStack(spacing: 8) {
-                    Image(systemName: "gamecontroller.fill").font(.system(size: 50)).foregroundColor(.white)
-                    Text("游戏账号管理").font(.title).fontWeight(.bold).foregroundColor(.white)
-                    Text("StikDebug").font(.subheadline).foregroundColor(.white.opacity(0.6))
-                }
-                Spacer().frame(height: 60)
-                
-                VStack(spacing: 16) {
-                    HomeButton(icon: "qrcode", color: .blue, title: "QQ扫码登录", subtitle: "使用手机QQ扫描二维码获取Token") { selectedTab = 1 }
-                    HomeButton(icon: "list.clipboard.fill", color: .orange, title: "Token管理", subtitle: "储存Token · 一键复制 · 删除", badge: "\(manager.tokenRecords.count)") { selectedTab = 2 }
-                    HomeButton(icon: "play.circle.fill", color: .green, title: "游戏登录", subtitle: "三角洲行动 / 暗区突围 / 和平精英") { selectedTab = 3 }
-                    HomeButton(icon: "arrow.down.doc.fill", color: .purple, title: "提取Token", subtitle: "从剪贴板或链接提取Token") { selectedTab = 4 }
-                }
-                .padding(.horizontal, 24)
-                Spacer()
-                Text("v1.0.0").font(.caption).foregroundColor(.white.opacity(0.3)).padding(.bottom, 30)
-            }
-        }
-    }
-}
-
-struct HomeButton: View {
-    let icon: String
-    let color: Color
-    let title: String
-    let subtitle: String
-    var badge: String? = nil
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 16) {
-                Image(systemName: icon).font(.system(size: 26)).foregroundColor(.white)
-                    .frame(width: 46, height: 46)
-                    .background(color.opacity(0.3)).clipShape(RoundedRectangle(cornerRadius: 12))
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title).font(.headline).foregroundColor(.white)
-                    Text(subtitle).font(.caption).foregroundColor(.white.opacity(0.5))
-                }
-                Spacer()
-                if let badge = badge {
-                    Text(badge).font(.caption).foregroundColor(.white).padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(color).clipShape(Capsule())
-                }
-                Image(systemName: "chevron.right").foregroundColor(.white.opacity(0.4))
-            }
-            .padding(18)
-            .background(Color.white.opacity(0.06))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
-            .cornerRadius(16)
-        }
-    }
-}
-
-// MARK: - QQ扫码页面
+// MARK: - QQ 扫码页面
 struct QRCodeView: View {
-    @Binding var selectedTab: Int
     @StateObject private var manager = GameLoginManager()
     @State private var countdown = 120
     @State private var expired = false
     @State private var timer: Timer?
-    
+
     var body: some View {
         ZStack {
             Color(red: 0.08, green: 0.10, blue: 0.16).ignoresSafeArea()
             VStack(spacing: 0) {
-                HeaderBar(title: "QQ扫码登录", onBack: { selectedTab = 0 })
-                
                 if manager.showMessage {
                     MessageBanner(message: manager.message, type: manager.messageType)
                 }
-                
                 ScrollView {
                     VStack(spacing: 24) {
                         VStack(spacing: 12) {
@@ -349,7 +337,7 @@ struct QRCodeView: View {
                             Text("三角洲行动").font(.title2).fontWeight(.bold).foregroundColor(.white)
                             Text("QQ账号授权登录").font(.subheadline).foregroundColor(.white.opacity(0.5))
                         }.padding(.top, 40)
-                        
+
                         VStack(spacing: 20) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 20).fill(Color.white).frame(width: 220, height: 220)
@@ -376,7 +364,7 @@ struct QRCodeView: View {
                         }
                         .padding(24).background(Color.white.opacity(0.05)).cornerRadius(20)
                         .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.1), lineWidth: 1))
-                        
+
                         Button(action: { manager.simulateQRCodeScan() }) {
                             Label("模拟扫码获取Token", systemImage: "iphone").font(.subheadline).foregroundColor(.white)
                                 .frame(maxWidth: .infinity).padding(.vertical, 14)
@@ -387,10 +375,12 @@ struct QRCodeView: View {
                 }
             }
         }
+        .navigationBarHidden(true)
+        .navigationBarBackButtonHidden(true)
         .onAppear { startTimer() }
         .onDisappear { timer?.invalidate() }
     }
-    
+
     private func startTimer() {
         countdown = 120; expired = false
         timer?.invalidate()
@@ -401,33 +391,25 @@ struct QRCodeView: View {
     private func refreshQRCode() { startTimer() }
 }
 
-// MARK: - Token管理页面
+// MARK: - Token 管理页面
 struct TokenManageView: View {
-    @Binding var selectedTab: Int
     @StateObject private var manager = GameLoginManager()
     @State private var inputToken = ""
     @FocusState private var isInputFocused: Bool
-    
+
     var body: some View {
         ZStack {
             Color(red: 0.08, green: 0.10, blue: 0.16).ignoresSafeArea()
             VStack(spacing: 0) {
-                HeaderBar(title: "Token管理", onBack: { selectedTab = 0 }) {
-                    if !manager.tokenRecords.isEmpty {
-                        Button("清空") { manager.clearAllTokens() }.font(.caption).foregroundColor(.red)
-                    }
-                }
-                
                 if manager.showMessage {
                     MessageBanner(message: manager.message, type: manager.messageType)
                 }
-                
                 ScrollView {
                     VStack(spacing: 16) {
                         if manager.isLoggedIn {
                             CurrentTokenCard(manager: manager)
                         }
-                        
+
                         VStack(spacing: 12) {
                             Text("手动输入Token").font(.subheadline).foregroundColor(.white.opacity(0.6)).frame(maxWidth: .infinity, alignment: .leading)
                             HStack(spacing: 8) {
@@ -444,12 +426,15 @@ struct TokenManageView: View {
                                 .background(Color.orange).cornerRadius(10)
                             }
                         }.padding().background(Color.white.opacity(0.05)).cornerRadius(16)
-                        
+
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Text("已储存Token").font(.subheadline).foregroundColor(.white.opacity(0.6))
                                 Spacer()
                                 Text("\(manager.tokenRecords.count)个").font(.caption).foregroundColor(.white.opacity(0.4))
+                                if !manager.tokenRecords.isEmpty {
+                                    Button("清空") { manager.clearAllTokens() }.font(.caption).foregroundColor(.red)
+                                }
                             }
                             if manager.tokenRecords.isEmpty {
                                 VStack(spacing: 12) {
@@ -466,8 +451,10 @@ struct TokenManageView: View {
                 }
             }
         }
+        .navigationBarHidden(true)
+        .navigationBarBackButtonHidden(true)
     }
-    
+
     private var keyboardToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .keyboard) {
             Spacer()
@@ -505,7 +492,7 @@ struct TokenCard: View {
     let record: TokenRecord
     let isCurrent: Bool
     @ObservedObject var manager: GameLoginManager
-    
+
     var body: some View {
         VStack(spacing: 8) {
             HStack {
@@ -530,50 +517,40 @@ struct TokenCard: View {
         .cornerRadius(12)
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(isCurrent ? Color.green.opacity(0.3) : Color.white.opacity(0.1), lineWidth: 1))
     }
-    
+
     private func mask(_ token: String) -> String {
         guard token.count > 10 else { return token }
         return String(token.prefix(6)) + "****" + String(token.suffix(4))
     }
 }
 
-// MARK: - 游戏登录页面（修复版）
+// MARK: - 游戏登录页面（新增独立一键登录按钮）
 struct GameLoginView: View {
-    @Binding var selectedTab: Int
     @StateObject private var manager = GameLoginManager()
     @State private var inputToken = ""
     @State private var useIndependentToken = false
     @FocusState private var isTokenFocused: Bool
-    
+
     var body: some View {
         ZStack {
             Color(red: 0.08, green: 0.10, blue: 0.16).ignoresSafeArea()
             VStack(spacing: 0) {
-                HeaderBar(title: "游戏登录", onBack: { selectedTab = 0 })
-                
-                // 消息提示
                 if manager.showMessage {
                     MessageBanner(message: manager.message, type: manager.messageType)
-                        .padding(.top, 8)
                 }
-                
                 ScrollView {
                     VStack(spacing: 16) {
-                        // Token状态
                         HStack {
                             Circle().fill(manager.isLoggedIn || !inputToken.isEmpty ? Color.green : Color.red).frame(width: 8, height: 8)
                             Text(manager.isLoggedIn || !inputToken.isEmpty ? "Token已就绪" : "未选择Token")
                                 .font(.caption).foregroundColor(.white.opacity(0.7))
                             Spacer()
                             if manager.isLoggedIn {
-                                Button("检测") {
-                                    manager.checkToken(manager.currentToken) { _ in }
-                                }.font(.caption).foregroundColor(.orange)
+                                Button("检测") { manager.checkToken(manager.currentToken) { _ in } }.font(.caption).foregroundColor(.orange)
                             }
                         }
                         .padding(.horizontal)
-                        
-                        // 独立Token开关
+
                         VStack(spacing: 12) {
                             Toggle("使用独立Token登录", isOn: $useIndependentToken).font(.subheadline).foregroundColor(.white)
                             if useIndependentToken {
@@ -591,8 +568,7 @@ struct GameLoginView: View {
                         }
                         .padding()
                         .background(Color.white.opacity(0.05)).cornerRadius(16)
-                        
-                        // 已储存Token选择
+
                         if !manager.tokenRecords.isEmpty && !useIndependentToken {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("选择已储存Token").font(.subheadline).foregroundColor(.white.opacity(0.6))
@@ -604,9 +580,7 @@ struct GameLoginView: View {
                                             Circle().fill(record.token == manager.currentToken ? Color.green : Color.clear).frame(width: 10, height: 10)
                                             Text(mask(record.token)).font(.caption).foregroundColor(.white)
                                             Spacer()
-                                            if record.token == manager.currentToken {
-                                                Text("当前").font(.caption2).foregroundColor(.green)
-                                            }
+                                            if record.token == manager.currentToken { Text("当前").font(.caption2).foregroundColor(.green) }
                                         }
                                         .padding(10).background(Color.white.opacity(0.05)).cornerRadius(8)
                                     }
@@ -614,36 +588,34 @@ struct GameLoginView: View {
                             }
                             .padding().background(Color.white.opacity(0.05)).cornerRadius(16)
                         }
-                        
-                        // 游戏登录卡片（直接传递 gameCode）
-                        VStack(spacing: 12) {
-                            GameLoginCard(
-                                name: "三角洲行动",
-                                icon: "arrow.triangle.swap",
-                                color: Color(red: 1.0, green: 0.45, blue: 0.0),
-                                gameCode: "delta_force",
-                                manager: manager,
-                                independentToken: useIndependentToken ? inputToken : nil
-                            )
-                            GameLoginCard(
-                                name: "暗区突围",
-                                icon: "shield.fill",
-                                color: Color(red: 0.9, green: 0.15, blue: 0.15),
-                                gameCode: "dark_zone",
-                                manager: manager,
-                                independentToken: useIndependentToken ? inputToken : nil
-                            )
-                            GameLoginCard(
-                                name: "和平精英",
-                                icon: "scope",
-                                color: Color(red: 0.1, green: 0.8, blue: 0.3),
-                                gameCode: "peace_elite",
-                                manager: manager,
-                                independentToken: useIndependentToken ? inputToken : nil
-                            )
+
+                        // 独立一键登录按钮
+                        Button(action: {
+                            manager.loginGame(gameName: "三角洲行动", gameCode: "delta_force", token: useIndependentToken ? inputToken : nil)
+                        }) {
+                            HStack {
+                                Image(systemName: "bolt.fill")
+                                Text("使用当前 Token 一键登录三角洲行动")
+                                    .fontWeight(.semibold)
+                            }
+                            .font(.subheadline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color.orange.opacity(0.8))
+                            .cornerRadius(12)
                         }
-                        
-                        // 登录记录
+
+                        Text("或选择游戏登录")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.4))
+
+                        VStack(spacing: 12) {
+                            GameLoginCard(name: "三角洲行动", icon: "arrow.triangle.swap", color: Color(red: 1.0, green: 0.45, blue: 0.0), gameCode: "delta_force", manager: manager, independentToken: useIndependentToken ? inputToken : nil)
+                            GameLoginCard(name: "暗区突围", icon: "shield.fill", color: Color(red: 0.9, green: 0.15, blue: 0.15), gameCode: "dark_zone", manager: manager, independentToken: useIndependentToken ? inputToken : nil)
+                            GameLoginCard(name: "和平精英", icon: "scope", color: Color(red: 0.1, green: 0.8, blue: 0.3), gameCode: "peace_elite", manager: manager, independentToken: useIndependentToken ? inputToken : nil)
+                        }
+
                         if !manager.accounts.isEmpty {
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("登录记录").font(.subheadline).foregroundColor(.white.opacity(0.6))
@@ -668,15 +640,16 @@ struct GameLoginView: View {
                 }
             }
         }
+        .navigationBarHidden(true)
+        .navigationBarBackButtonHidden(true)
     }
-    
+
     private func mask(_ token: String) -> String {
         guard token.count > 10 else { return token }
         return String(token.prefix(6)) + "****" + String(token.suffix(4))
     }
 }
 
-// 游戏登录卡片（修复：直接传入gameCode）
 struct GameLoginCard: View {
     let name: String
     let icon: String
@@ -684,10 +657,9 @@ struct GameLoginCard: View {
     let gameCode: String
     @ObservedObject var manager: GameLoginManager
     var independentToken: String?
-    
+
     var body: some View {
         Button {
-            // 关键：调用登录方法
             manager.loginGame(gameName: name, gameCode: gameCode, token: independentToken)
         } label: {
             HStack(spacing: 16) {
@@ -695,7 +667,7 @@ struct GameLoginCard: View {
                     .frame(width: 56, height: 56).background(color).clipShape(RoundedRectangle(cornerRadius: 14))
                 VStack(alignment: .leading, spacing: 4) {
                     Text(name).font(.headline).foregroundColor(.white)
-                    Text(independentToken != nil ? "使用独立Token登录" : "使用当前Token登录").font(.caption).foregroundColor(.white.opacity(0.5))
+                    Text(independentToken != nil ? "使用独立Token" : "使用当前Token").font(.caption).foregroundColor(.white.opacity(0.5))
                 }
                 Spacer()
                 Text("🚀 登录").font(.subheadline).fontWeight(.medium).foregroundColor(.white).padding(.horizontal, 20).padding(.vertical, 10).background(color).cornerRadius(8)
@@ -706,32 +678,27 @@ struct GameLoginCard: View {
     }
 }
 
-// MARK: - 提取Token页面
+// MARK: - 提取 Token 页面
 struct ExtractTokenView: View {
-    @Binding var selectedTab: Int
     @StateObject private var manager = GameLoginManager()
     @State private var inputText = ""
     @State private var extractedToken = ""
     @FocusState private var isFocused: Bool
-    
+
     var body: some View {
         ZStack {
             Color(red: 0.08, green: 0.10, blue: 0.16).ignoresSafeArea()
             VStack(spacing: 0) {
-                HeaderBar(title: "提取Token", onBack: { selectedTab = 0 })
-                
                 if manager.showMessage {
                     MessageBanner(message: manager.message, type: manager.messageType)
-                        .padding(.top, 8)
                 }
-                
                 ScrollView {
                     VStack(spacing: 20) {
                         VStack(spacing: 12) {
                             Text("从文本中提取Token").font(.headline).foregroundColor(.white)
                             Text("粘贴包含Token的文本，自动识别并提取").font(.caption).foregroundColor(.white.opacity(0.5))
                         }
-                        
+
                         VStack(spacing: 12) {
                             TextEditor(text: $inputText)
                                 .frame(minHeight: 120)
@@ -749,7 +716,7 @@ struct ExtractTokenView: View {
                                         }
                                     }
                                 )
-                            
+
                             Button {
                                 extractToken()
                             } label: {
@@ -759,7 +726,7 @@ struct ExtractTokenView: View {
                                     .background(Color.purple).cornerRadius(10)
                             }
                         }
-                        
+
                         if !extractedToken.isEmpty {
                             VStack(spacing: 12) {
                                 Text("提取结果").font(.subheadline).foregroundColor(.green)
@@ -771,7 +738,7 @@ struct ExtractTokenView: View {
                                         extractedToken = ""
                                         inputText = ""
                                     } label: {
-                                        Label("储存到Token管理", systemImage: "square.and.arrow.down").font(.caption).foregroundColor(.white)
+                                        Label("储存", systemImage: "square.and.arrow.down").font(.caption).foregroundColor(.white)
                                             .frame(maxWidth: .infinity).padding(.vertical, 12).background(Color.green).cornerRadius(10)
                                     }
                                     Button {
@@ -784,7 +751,7 @@ struct ExtractTokenView: View {
                             }
                             .padding().background(Color.white.opacity(0.05)).cornerRadius(16)
                         }
-                        
+
                         VStack(alignment: .leading, spacing: 8) {
                             Text("支持格式").font(.subheadline).foregroundColor(.white.opacity(0.6))
                             Text("• JSON: {\"token\":\"xxx\"}").font(.caption).foregroundColor(.white.opacity(0.4))
@@ -795,12 +762,14 @@ struct ExtractTokenView: View {
                 }
             }
         }
+        .navigationBarHidden(true)
+        .navigationBarBackButtonHidden(true)
     }
-    
+
     private func extractToken() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        
+
         if let data = text.data(using: .utf8),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let token = json["token"] as? String {
@@ -818,43 +787,5 @@ struct ExtractTokenView: View {
         } else {
             extractedToken = "未识别到有效Token"
         }
-    }
-}
-
-// MARK: - 通用组件
-struct HeaderBar: View {
-    let title: String
-    let onBack: () -> Void
-    var trailing: (() -> AnyView)? = nil
-    
-    init(title: String, onBack: @escaping () -> Void) {
-        self.title = title
-        self.onBack = onBack
-    }
-    
-    init(title: String, onBack: @escaping () -> Void, @ViewBuilder trailing: @escaping () -> some View) {
-        self.title = title
-        self.onBack = onBack
-        self.trailing = { AnyView(trailing()) }
-    }
-    
-    var body: some View {
-        HStack {
-            Button(action: onBack) {
-                Image(systemName: "chevron.left").font(.title3).foregroundColor(.white)
-            }
-            Spacer()
-            Text(title).font(.headline).foregroundColor(.white)
-            Spacer()
-            if let trailing = trailing {
-                trailing()
-            } else {
-                Image(systemName: "chevron.left").font(.title3).foregroundColor(.clear)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 50)
-        .padding(.bottom, 10)
-        .background(Color(red: 0.10, green: 0.12, blue: 0.20))
     }
 }
