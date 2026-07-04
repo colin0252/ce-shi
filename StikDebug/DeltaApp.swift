@@ -1,571 +1,480 @@
-import SwiftUI
-import CoreImage
-import CryptoKit
+<?xml version="1.0" encoding="UTF-8"?>
+<swui:Application xmlns:swui="http://swui.com/schema"
+                  title="游戏账号管理助手"
+                  width="800" height="600"
+                  theme="dark">
 
-// MARK: - QQ 互联配置
-struct QQConfig {
-    static let appID = "100360353"
-    static let redirectURI = "seecoonlocal://oauth/callback"
-    
-    static func authURL(state: String) -> URL {
-        var comps = URLComponents(string: "https://graph.qq.com/oauth2.0/authorize")!
-        comps.queryItems = [
-            URLQueryItem(name: "response_type", value: "token"),
-            URLQueryItem(name: "client_id", value: appID),
-            URLQueryItem(name: "redirect_uri", value: redirectURI),
-            URLQueryItem(name: "scope", value: "get_user_info"),
-            URLQueryItem(name: "state", value: state)
-        ]
-        return comps.url!
-    }
-}
+    <swui:Style>
+        <style id="main-style">
+            <background color="#1e1e2e"/>
+            <font family="Microsoft YaHei" size="14"/>
+        </style>
+        
+        <style id="card-style">
+            <background color="#2d2d44" radius="10"/>
+            <padding top="15" bottom="15" left="15" right="15"/>
+            <margin top="10" bottom="10"/>
+        </style>
+        
+        <style id="button-primary">
+            <background color="#7289da"/>
+            <foreground color="white"/>
+            <padding top="8" bottom="8" left="20" right="20"/>
+            <radius>5</radius>
+            <cursor>hand</cursor>
+        </style>
+        
+        <style id="button-danger">
+            <background color="#f04747"/>
+            <foreground color="white"/>
+            <padding top="8" bottom="8" left="20" right="20"/>
+            <radius>5</radius>
+            <cursor>hand</cursor>
+        </style>
+        
+        <style id="button-success">
+            <background color="#43b581"/>
+            <foreground color="white"/>
+            <padding top="8" bottom="8" left="20" right="20"/>
+            <radius>5</radius>
+            <cursor>hand</cursor>
+        </style>
+    </swui:Style>
 
-// MARK: - 游戏配置
-struct GameConfig: Identifiable, Hashable {
-    let id = UUID()
-    let name: String
-    let scheme: String
-    let icon: String
-    
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-    
-    static func == (lhs: GameConfig, rhs: GameConfig) -> Bool {
-        lhs.id == rhs.id
-    }
-}
+    <swui:Script>
+        <![CDATA[
+        // 全局状态管理
+        var currentToken = null;
+        var accounts = [];
+        var qrCodeTimer = null;
 
-let supportedGames: [GameConfig] = [
-    GameConfig(name: "三角洲行动", scheme: "seecoon://", icon: "figure.martial.arts"),
-    GameConfig(name: "暗区突围", scheme: "darkzone://", icon: "target"),
-    GameConfig(name: "和平精英", scheme: "pubgmhd://", icon: "scope")
-]
-
-// MARK: - AppDelegate
-class AppDelegate: NSObject, UIApplicationDelegate {
-    static var orientationLock = UIInterfaceOrientationMask.portrait
-    
-    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
-        return AppDelegate.orientationLock
-    }
-    
-    func application(_ application: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
-        return QQAuthManager.shared.handleCallback(url: url)
-    }
-}
-
-// MARK: - 屏幕方向控制
-struct OrientationHelper {
-    static func lockPortrait() {
-        AppDelegate.orientationLock = .portrait
-        UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
-        UIViewController.attemptRotationToDeviceOrientation()
-    }
-    
-    static func lockLandscape() {
-        AppDelegate.orientationLock = .landscapeRight
-        UIDevice.current.setValue(UIInterfaceOrientation.landscapeRight.rawValue, forKey: "orientation")
-        UIViewController.attemptRotationToDeviceOrientation()
-    }
-}
-
-// MARK: - QQ 授权管理器
-class QQAuthManager: ObservableObject {
-    static let shared = QQAuthManager()
-    @Published var accessToken: String? = nil
-    @Published var isAuthorizing = false
-    private var currentState = ""
-    
-    func startAuth() -> URL? {
-        currentState = UUID().uuidString
-        isAuthorizing = true
-        return QQConfig.authURL(state: currentState)
-    }
-    
-    func handleCallback(url: URL) -> Bool {
-        guard isAuthorizing else { return false }
-        isAuthorizing = false
-        var params = [String: String]()
-        if let fragment = url.fragment {
-            URLComponents(string: "?" + fragment)?.queryItems?.forEach { params[$0.name] = $0.value }
-        } else if let query = url.query {
-            URLComponents(string: "?" + query)?.queryItems?.forEach { params[$0.name] = $0.value }
+        // 初始化
+        function onLoad() {
+            loadAccounts();
+            generateQRCode();
         }
-        guard params["state"] == currentState, let token = params["access_token"] else { return false }
-        self.accessToken = token
-        return true
-    }
-}
 
-// MARK: - 二维码生成器
-struct QRGenerator {
-    static let context = CIContext()
-    static func createQRCode(text: String) -> UIImage {
-        guard let filter = CIFilter(name: "CIQRCodeGenerator") else { return UIImage() }
-        filter.setValue(Data(text.utf8), forKey: "inputMessage")
-        filter.setValue("H", forKey: "inputCorrectionLevel")
-        guard let output = filter.outputImage else { return UIImage() }
-        let scaled = output.transformed(by: CGAffineTransform(scaleX: 15, y: 15))
-        guard let cg = context.createCGImage(scaled, from: scaled.extent) else { return UIImage() }
-        return UIImage(cgImage: cg)
-    }
-}
+        // 生成QQ二维码
+        function generateQRCode() {
+            var qrContainer = getElement("qr-code-container");
+            var appId = config.qq.app_id;
+            var redirectUri = encodeURIComponent(config.qq.redirect_uri);
+            var state = generateRandomState();
+            
+            var qrUrl = `https://graph.qq.com/oauth2.0/authorize?response_type=token&client_id=${appId}&redirect_uri=${redirectUri}&scope=${config.qq.scope}&state=${state}`;
+            
+            // 生成二维码图片
+            qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}" alt="QQ二维码"/>`;
+            
+            // 开始轮询检查扫码状态
+            startPolling(state);
+        }
 
-// MARK: - Token 提取工具
-struct TokenExtractor {
-    static func extractToken(from text: String) -> String? {
-        let patterns = [
-            "seecoon_token=([A-Za-z0-9+/=]{50,})",
-            "token=([A-Za-z0-9+/=]{50,})",
-            "([A-Za-z0-9+/=]{80,})"
-        ]
-        for pattern in patterns {
-            if let regex = try? NSRegularExpression(pattern: pattern),
-               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
-               let range = Range(match.range(at: 1), in: text) {
-                return String(text[range])
+        // 刷新二维码
+        function refreshQRCode() {
+            if (qrCodeTimer) {
+                clearInterval(qrCodeTimer);
             }
+            generateQRCode();
+            showMessage("二维码已刷新", "info");
         }
-        return nil
-    }
-}
 
-// MARK: - 加密工具
-struct CryptoHelper {
-    private static let keyRaw = Data("IENNSJFJWKSFJ20260702".utf8)
-    private static let nonceRaw = Data("1234567890123456".utf8)
-    static func encrypt(_ text: String) -> String {
-        let key = SymmetricKey(data: keyRaw)
-        let nonce = try! AES.GCM.Nonce(data: nonceRaw)
-        let box = try! AES.GCM.seal(Data(text.utf8), using: key, nonce: nonce)
-        return box.combined!.base64EncodedString()
-    }
-    static func decrypt(_ base64Str: String) -> String {
-        guard let combined = Data(base64Encoded: base64Str) else { return "" }
-        let key = SymmetricKey(data: keyRaw)
-        guard let box = try? AES.GCM.SealedBox(combined: combined),
-              let data = try? AES.GCM.open(box, using: key) else { return "" }
-        return String(data: data, encoding: .utf8) ?? ""
-    }
-}
-
-// MARK: - 账号模型
-struct Account: Identifiable, Codable {
-    let id: UUID
-    let openid: String
-    let seecoon_token: String
-    let quid: String
-    let refresh_token: String
-    let createTime: Date
-    init(openid: String, seecoon_token: String, quid: String, refresh_token: String) {
-        self.id = UUID()
-        self.openid = openid
-        self.seecoon_token = seecoon_token
-        self.quid = quid
-        self.refresh_token = refresh_token
-        self.createTime = Date()
-    }
-    enum CodingKeys: CodingKey { case id, openid, seecoon_token, quid, refresh_token, createTime }
-}
-
-// MARK: - 数据管理器
-class DataManager: ObservableObject {
-    @Published var accounts: [Account] = []
-    var filePath: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("delta.dat")
-    }
-    init() { loadAllAccounts() }
-    func saveNewAccount(_ acc: Account) { accounts.append(acc); syncToDisk() }
-    func deleteAccount(uuid: UUID) { accounts.removeAll { $0.id == uuid }; syncToDisk() }
-    private func syncToDisk() {
-        let json = try! JSONEncoder().encode(accounts)
-        let enc = CryptoHelper.encrypt(json.base64EncodedString())
-        try! enc.write(to: filePath, atomically: true, encoding: .utf8)
-    }
-    private func loadAllAccounts() {
-        guard FileManager.default.fileExists(atPath: filePath.path) else { return }
-        let cipher = try! String(contentsOf: filePath)
-        let plain = CryptoHelper.decrypt(cipher)
-        guard let data = Data(base64Encoded: plain) else { return }
-        accounts = try! JSONDecoder().decode([Account].self, from: data)
-    }
-}
-
-// MARK: - 页面路由
-enum AppPage { case home, capture, accountList, tokenLogin, extractToken }
-
-// MARK: - 主界面
-struct HomeView: View {
-    @Binding var currentPage: AppPage
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            Spacer()
-            Text("三角洲行动助手")
-                .font(.system(size: 32, weight: .bold))
-                .foregroundColor(.black)
-                .padding(.bottom, 40)
-            VStack(spacing: 18) {
-                Button("挂机收号 + QQ扫码") { currentPage = .capture }
-                    .homeButtonStyle(color: .red)
-                Button("账号库存") { currentPage = .accountList }
-                    .homeButtonStyle(color: .green)
-                Button("Token 一键上号") { currentPage = .tokenLogin }
-                    .homeButtonStyle(color: .blue)
-                Button("提取 Token（从文本）") { currentPage = .extractToken }
-                    .homeButtonStyle(color: .purple)
-            }
-            .padding(.horizontal, 30)
-            Spacer()
-        }
-        .background(Color.white)
-        .onAppear { OrientationHelper.lockPortrait() }
-    }
-}
-
-extension View {
-    func homeButtonStyle(color: Color) -> some View {
-        self.font(.system(size: 18, weight: .medium))
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .background(color)
-            .cornerRadius(14)
-    }
-}
-
-// MARK: - 挂机收号 + QQ扫码 合并页面
-struct CapturePage: View {
-    @EnvironmentObject var manager: DataManager
-    @Binding var currentPage: AppPage
-    @State private var selectedMode = 0
-    @State private var catchCount = 0
-    @State private var qrImage = UIImage()
-    @State private var session = ""
-    @State private var clipTask: Task<Void, Never>?
-    @State private var loopTask: Task<Void, Never>?
-    @State private var lastPaste = ""
-    @StateObject private var authManager = QQAuthManager.shared
-    
-    func newSession() {
-        loopTask?.cancel()
-        clipTask?.cancel()
-        session = UUID().uuidString
-        let base64Session = Data(session.utf8).base64EncodedString()
-        let customProtocol = "open://authdata/\(base64Session)"
-        qrImage = QRGenerator.createQRCode(text: customProtocol)
-        startClipboard()
-        startPolling()
-    }
-    
-    func startClipboard() {
-        clipTask = Task {
-            while true {
-                try? await Task.sleep(nanoseconds: 400_000_000)
-                await MainActor.run {
-                    let paste = UIPasteboard.general.string ?? ""
-                    if paste != lastPaste && paste.contains("open://authdata/") {
-                        lastPaste = paste
-                    }
+        // 轮询检查登录状态
+        function startPolling(state) {
+            var pollCount = 0;
+            var maxPolls = 120; // 2分钟超时
+            
+            qrCodeTimer = setInterval(function() {
+                pollCount++;
+                if (pollCount > maxPolls) {
+                    clearInterval(qrCodeTimer);
+                    showMessage("二维码已过期，请刷新", "warning");
+                    return;
                 }
-            }
-        }
-    }
-    
-    func startPolling() {
-        loopTask = Task {
-            var count = 0
-            while true {
-                try? await Task.sleep(nanoseconds: 1_300_000_000)
-                count += 1
-                if count >= 70 { await MainActor.run { newSession() }; break }
-                guard let url = URL(string: "https://game.seecoon.com/api/login/checkScan?session=\(session)") else { continue }
-                do {
-                    let (data, _) = try await URLSession.shared.data(from: url)
-                    guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                          let user = json["data"] as? [String: Any] else { continue }
-                    let acc = Account(openid: user["openid"] as! String,
-                                      seecoon_token: user["seecoon_token"] as! String,
-                                      quid: user["quid"] as! String,
-                                      refresh_token: user["refresh_token"] as! String)
-                    await MainActor.run { manager.saveNewAccount(acc); catchCount += 1; newSession() }
-                    break
-                } catch {}
-            }
-        }
-    }
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Button("← 返回首页") {
-                    OrientationHelper.lockPortrait()
-                    loopTask?.cancel(); clipTask?.cancel()
-                    currentPage = .home
-                }
-                .foregroundColor(.blue).font(.system(size: 16))
-                Spacer()
-            }
-            .padding(.horizontal, 20).padding(.top, 10)
-            
-            Picker("模式", selection: $selectedMode) {
-                Text("挂机收号").tag(0); Text("QQ扫码").tag(1)
-            }
-            .pickerStyle(.segmented).padding(.horizontal, 40).padding(.vertical, 10)
-            
-            Spacer()
-            
-            if selectedMode == 0 {
-                Image(uiImage: qrImage).resizable().scaledToFit().frame(width: 260, height: 260)
-                Text("已抓取：\(catchCount) 个账号").foregroundColor(.gray).font(.system(size: 16)).padding(.top, 15)
-            } else {
-                if let url = authManager.startAuth() {
-                    Image(uiImage: QRGenerator.createQRCode(text: url.absoluteString)).resizable().scaledToFit().frame(width: 260, height: 260)
-                }
-                if let token = authManager.accessToken {
-                    Text("Token: \(String(token.prefix(15)))...").foregroundColor(.green).font(.system(size: 14)).padding(.top, 10)
-                    Button("复制 Token") { UIPasteboard.general.string = authManager.accessToken }.foregroundColor(.blue)
-                } else {
-                    Text("请使用 QQ 扫描此二维码").foregroundColor(.gray).font(.system(size: 16)).padding(.top, 15)
-                }
-            }
-            Spacer()
-        }
-        .background(Color.white)
-        .onAppear { OrientationHelper.lockLandscape(); if selectedMode == 0 { newSession() } }
-        .onChange(of: selectedMode) { mode in
-            if mode == 0 { newSession() } else { loopTask?.cancel(); clipTask?.cancel(); _ = authManager.startAuth() }
-        }
-        .onDisappear { loopTask?.cancel(); clipTask?.cancel(); OrientationHelper.lockPortrait() }
-    }
-}
-
-// MARK: - 账号库存页面
-struct PageB: View {
-    @EnvironmentObject var manager: DataManager
-    @Binding var currentPage: AppPage
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Button("← 返回首页") { currentPage = .home }.foregroundColor(.blue).font(.system(size: 16))
-                Spacer()
-            }
-            .padding(.horizontal, 20).padding(.top, 10)
-            
-            Text("账号库存").font(.system(size: 22, weight: .bold)).foregroundColor(.black).padding(.vertical, 12)
-            
-            List(manager.accounts) { acc in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("OpenID: \(acc.openid)").foregroundColor(.black).font(.system(size: 14))
-                    Text("Token: \(String(acc.seecoon_token.prefix(20)))...").font(.system(size: 11)).foregroundColor(.gray)
-                    HStack {
-                        Button("复制") { UIPasteboard.general.string = acc.seecoon_token }.font(.system(size: 13))
-                        Button("删除", role: .destructive) { manager.deleteAccount(uuid: acc.id) }.font(.system(size: 13))
-                    }
-                }
-                .padding(.vertical, 4)
-            }
-            .listStyle(.plain)
-        }
-        .background(Color.white)
-        .onAppear { OrientationHelper.lockPortrait() }
-    }
-}
-
-// MARK: - Token 一键上号页面
-struct TokenLoginPage: View {
-    @Binding var currentPage: AppPage
-    @State var token = ""
-    @State var selectedGame = 0
-    @State var status = ""
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Button("← 返回首页") { currentPage = .home }.foregroundColor(.blue).font(.system(size: 16))
-                Spacer()
-            }
-            .padding(.horizontal, 20).padding(.top, 10)
-            
-            Spacer()
-            
-            Text("Token 一键上号").font(.system(size: 24, weight: .bold)).foregroundColor(.black).padding(.bottom, 20)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Text("选择游戏：").foregroundColor(.gray).font(.system(size: 14))
-                Menu {
-                    ForEach(0..<supportedGames.count, id: \.self) { i in
-                        Button(action: { selectedGame = i }) {
-                            HStack {
-                                Image(systemName: supportedGames[i].icon)
-                                Text(supportedGames[i].name)
-                                if selectedGame == i { Image(systemName: "checkmark") }
-                            }
-                        }
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: supportedGames[selectedGame].icon)
-                        Text(supportedGames[selectedGame].name)
-                        Spacer()
-                        Image(systemName: "chevron.down").foregroundColor(.gray)
-                    }
-                    .padding().background(Color(.systemGray6)).cornerRadius(10)
-                }
-            }
-            .padding(.horizontal, 25).padding(.bottom, 20)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Text("输入 Token：").foregroundColor(.gray).font(.system(size: 14))
-                HStack(spacing: 8) {
-                    TextField("粘贴 Token", text: $token)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(size: 16))
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                    
-                    Button(action: {
-                        if let pasteString = UIPasteboard.general.string {
-                            token = pasteString
-                        }
-                    }) {
-                        Text("读取粘贴板").font(.system(size: 13)).foregroundColor(.white)
-                            .padding(.horizontal, 12).padding(.vertical, 10)
-                            .background(Color.gray).cornerRadius(8)
-                    }
-                }
-            }
-            .padding(.horizontal, 25)
-            
-            Button("校验 Token") { check() }
-                .foregroundColor(.white).font(.system(size: 17))
-                .frame(maxWidth: .infinity).frame(height: 46)
-                .background(Color.blue).cornerRadius(10)
-                .padding(.horizontal, 25).padding(.top, 18)
-            
-            Text(status).foregroundColor(status.contains("✅") ? .green : .red).font(.system(size: 15)).padding(.top, 8)
-            
-            Button("一键拉起 \(supportedGames[selectedGame].name)") { loginGame() }
-                .disabled(token.isEmpty)
-                .foregroundColor(.white).font(.system(size: 17))
-                .frame(maxWidth: .infinity).frame(height: 46)
-                .background(Color.orange).cornerRadius(10)
-                .padding(.horizontal, 25).padding(.top, 12)
-            
-            Spacer()
-        }
-        .background(Color.white)
-        .onAppear { OrientationHelper.lockPortrait() }
-    }
-    
-    func check() {
-        if token.isEmpty { status = "❌ 请输入 Token" }
-        else if token.count > 80 { status = "✅ Token 格式有效" }
-        else { status = "❌ Token 格式无效" }
-    }
-    
-    func loginGame() {
-        let game = supportedGames[selectedGame]
-        if let url = URL(string: "\(game.scheme)login?token=\(token)") {
-            UIApplication.shared.open(url)
-        }
-    }
-}
-
-// MARK: - 提取 Token 页面
-struct ExtractTokenPage: View {
-    @Binding var currentPage: AppPage
-    @State private var inputText = ""
-    @State private var extractedToken = ""
-    @State private var message = ""
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Button("← 返回首页") { currentPage = .home }.foregroundColor(.blue).font(.system(size: 16))
-                Spacer()
-            }
-            .padding(.horizontal, 20).padding(.top, 10)
-            
-            Spacer()
-            
-            Text("从文本中提取 Token")
-                .font(.system(size: 24, weight: .bold)).foregroundColor(.black).padding(.bottom, 20)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                Text("粘贴包含 Token 的文本：").foregroundColor(.gray).font(.system(size: 14))
                 
-                TextEditor(text: $inputText)
-                    .frame(height: 150)
-                    .border(Color.gray.opacity(0.3))
-                    .cornerRadius(8)
-                    .font(.system(size: 15))
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
-            }
-            .padding(.horizontal, 25)
-            
-            Button("提取 Token") {
-                if let token = TokenExtractor.extractToken(from: inputText) {
-                    extractedToken = token
-                    message = "✅ 提取成功"
-                } else {
-                    extractedToken = ""
-                    message = "❌ 未找到有效 Token"
-                }
-            }
-            .foregroundColor(.white).font(.system(size: 17))
-            .frame(maxWidth: .infinity).frame(height: 46)
-            .background(Color.blue).cornerRadius(10)
-            .padding(.horizontal, 25).padding(.top, 18)
-            
-            Text(message).foregroundColor(message.contains("✅") ? .green : .red).font(.system(size: 15)).padding(.top, 8)
-            
-            if !extractedToken.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("提取的 Token：").foregroundColor(.gray).font(.system(size: 14))
-                    Text(extractedToken).font(.system(size: 11)).foregroundColor(.black).padding().background(Color(.systemGray6)).cornerRadius(8)
-                    Button("复制 Token") { UIPasteboard.general.string = extractedToken }
-                        .foregroundColor(.white).font(.system(size: 17))
-                        .frame(maxWidth: .infinity).frame(height: 46)
-                        .background(Color.green).cornerRadius(10)
-                }
-                .padding(.horizontal, 25).padding(.top, 15)
-            }
-            
-            Spacer()
+                // 检查扫码状态
+                checkLoginStatus(state);
+            }, 1000);
         }
-        .background(Color.white)
-        .onAppear { OrientationHelper.lockPortrait() }
-    }
-}
 
-// MARK: - 程序入口
-@main
-struct DeltaApp: App {
-    @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
-    @StateObject var manager = DataManager()
-    @State var currentPage: AppPage = .home
-    
-    var body: some Scene {
-        WindowGroup {
-            if #available(iOS 16.4, *) {
-                switch currentPage {
-                case .home:
-                    HomeView(currentPage: $currentPage).environmentObject(manager)
-                case .capture:
-                    CapturePage(currentPage: $currentPage).environmentObject(manager)
-                case .accountList:
-                    PageB(currentPage: $currentPage).environmentObject(manager)
-                case .tokenLogin:
-                    TokenLoginPage(currentPage: $currentPage)
-                case .extractToken:
-                    ExtractTokenPage(currentPage: $currentPage)
+        // 检查登录状态
+        function checkLoginStatus(state) {
+            fetch(`/api/check-login?state=${state}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.token) {
+                        clearInterval(qrCodeTimer);
+                        currentToken = data.token;
+                        updateTokenDisplay(data.token);
+                        showMessage("扫码登录成功！", "success");
+                    }
+                })
+                .catch(error => {
+                    console.error("检查登录状态失败:", error);
+                });
+        }
+
+        // 更新Token显示
+        function updateTokenDisplay(token) {
+            var tokenInput = getElement("token-input");
+            tokenInput.value = token;
+            
+            var tokenStatus = getElement("token-status");
+            tokenStatus.text = "● 已登录";
+            tokenStatus.style.color = "#43b581";
+        }
+
+        // 手动输入Token
+        function manualTokenInput() {
+            var token = getElement("token-input").value.trim();
+            if (!token) {
+                showMessage("请输入Token", "warning");
+                return;
+            }
+            
+            currentToken = token;
+            updateTokenDisplay(token);
+            showMessage("Token已设置", "success");
+        }
+
+        // 一键复制Token
+        function copyToken() {
+            if (!currentToken) {
+                showMessage("请先获取Token", "warning");
+                return;
+            }
+            
+            navigator.clipboard.writeText(currentToken).then(function() {
+                showMessage("Token已复制到剪贴板", "success");
+            }).catch(function() {
+                // 降级方案
+                var tokenInput = getElement("token-input");
+                tokenInput.select();
+                document.execCommand("copy");
+                showMessage("Token已复制到剪贴板", "success");
+            });
+        }
+
+        // 游戏登录
+        function loginGame(gameCode) {
+            if (!currentToken) {
+                showMessage("请先获取Token", "warning");
+                return;
+            }
+            
+            var gameName = config.games[gameCode].name;
+            showMessage(`正在登录${gameName}...`, "info");
+            
+            var gameConfig = config.games[gameCode];
+            fetch(gameConfig.api_base + gameConfig.login_endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + currentToken
+                },
+                body: JSON.stringify({
+                    token: currentToken,
+                    game: gameCode
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage(`${gameName}登录成功！`, "success");
+                    saveAccount(gameName, gameCode, data.account);
+                } else {
+                    showMessage(`${gameName}登录失败：${data.message}`, "error");
                 }
+            })
+            .catch(error => {
+                showMessage(`${gameName}登录失败：网络错误`, "error");
+            });
+        }
+
+        // 保存账号
+        function saveAccount(gameName, gameCode, accountData) {
+            var account = {
+                id: Date.now(),
+                gameName: gameName,
+                gameCode: gameCode,
+                username: accountData.username || accountData.uid,
+                uid: accountData.uid,
+                loginTime: new Date().toLocaleString(),
+                token: currentToken
+            };
+            
+            // 检查是否已存在
+            var existingIndex = accounts.findIndex(a => a.gameCode === gameCode && a.uid === account.uid);
+            if (existingIndex >= 0) {
+                accounts[existingIndex] = account;
+            } else {
+                accounts.push(account);
+            }
+            
+            // 保存到本地存储
+            localStorage.setItem('game_accounts', JSON.stringify(accounts));
+            
+            // 同时保存到数据库
+            saveAccountToDB(account);
+            
+            refreshAccountList();
+        }
+
+        // 保存到数据库
+        function saveAccountToDB(account) {
+            fetch('/api/accounts/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(account)
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("账号已保存到数据库");
+            })
+            .catch(error => {
+                console.error("保存到数据库失败:", error);
+            });
+        }
+
+        // 加载账号列表
+        function loadAccounts() {
+            var savedAccounts = localStorage.getItem('game_accounts');
+            if (savedAccounts) {
+                accounts = JSON.parse(savedAccounts);
+            }
+            
+            // 也从数据库加载
+            loadAccountsFromDB();
+            
+            refreshAccountList();
+        }
+
+        // 从数据库加载
+        function loadAccountsFromDB() {
+            fetch('/api/accounts/list')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.accounts && data.accounts.length > 0) {
+                        // 合并账号数据
+                        data.accounts.forEach(dbAccount => {
+                            var exists = accounts.find(a => a.id === dbAccount.id);
+                            if (!exists) {
+                                accounts.push(dbAccount);
+                            }
+                        });
+                        localStorage.setItem('game_accounts', JSON.stringify(accounts));
+                        refreshAccountList();
+                    }
+                })
+                .catch(error => {
+                    console.error("从数据库加载失败:", error);
+                });
+        }
+
+        // 刷新账号列表显示
+        function refreshAccountList() {
+            var accountList = getElement("account-list");
+            accountList.innerHTML = "";
+            
+            if (accounts.length === 0) {
+                accountList.innerHTML = "<div style='text-align:center;color:#888;padding:20px;'>暂无账号，请先登录游戏</div>";
+                return;
+            }
+            
+            accounts.forEach(function(account) {
+                var card = document.createElement("div");
+                card.className = "account-card";
+                card.innerHTML = `
+                    <div class="account-info">
+                        <div class="account-game">${account.gameName}</div>
+                        <div class="account-uid">UID: ${account.uid}</div>
+                        <div class="account-time">登录时间: ${account.loginTime}</div>
+                    </div>
+                    <div class="account-actions">
+                        <button onclick="copyAccountUID('${account.uid}')" class="btn-copy" title="复制UID">
+                            📋 复制
+                        </button>
+                        <button onclick="deleteAccount('${account.id}')" class="btn-delete" title="删除账号">
+                            🗑️ 删除
+                        </button>
+                    </div>
+                `;
+                accountList.appendChild(card);
+            });
+        }
+
+        // 复制账号UID
+        function copyAccountUID(uid) {
+            navigator.clipboard.writeText(uid).then(function() {
+                showMessage("UID已复制到剪贴板", "success");
+            }).catch(function() {
+                showMessage("复制失败", "error");
+            });
+        }
+
+        // 删除账号
+        function deleteAccount(accountId) {
+            if (confirm("确定要删除这个账号吗？")) {
+                // 从本地删除
+                accounts = accounts.filter(function(a) {
+                    return a.id != accountId;
+                });
+                localStorage.setItem('game_accounts', JSON.stringify(accounts));
+                
+                // 从数据库删除
+                fetch(`/api/accounts/delete/${accountId}`, {
+                    method: 'DELETE'
+                }).catch(error => {
+                    console.error("从数据库删除失败:", error);
+                });
+                
+                refreshAccountList();
+                showMessage("账号已删除", "info");
             }
         }
-    }
-}
+
+        // 清空所有账号
+        function clearAllAccounts() {
+            if (accounts.length === 0) {
+                showMessage("没有可删除的账号", "info");
+                return;
+            }
+            
+            if (confirm("确定要删除所有账号吗？此操作不可恢复！")) {
+                accounts = [];
+                localStorage.removeItem('game_accounts');
+                
+                fetch('/api/accounts/clear', {
+                    method: 'DELETE'
+                }).catch(error => {
+                    console.error("清空数据库失败:", error);
+                });
+                
+                refreshAccountList();
+                showMessage("所有账号已清空", "info");
+            }
+        }
+
+        // 生成随机state
+        function generateRandomState() {
+            return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        }
+
+        // 显示消息
+        function showMessage(message, type) {
+            var msgContainer = getElement("message-container");
+            var msgDiv = document.createElement("div");
+            msgDiv.className = "message message-" + type;
+            msgDiv.textContent = message;
+            
+            msgContainer.appendChild(msgDiv);
+            
+            // 3秒后自动消失
+            setTimeout(function() {
+                msgDiv.remove();
+            }, 3000);
+        }
+
+        function getElement(id) {
+            return document.getElementById(id);
+        }
+        ]]>
+    </swui:Script>
+
+    <swui:Layout type="vertical" padding="20">
+        
+        <!-- 消息提示容器 -->
+        <swui:Container id="message-container" height="auto" style="position:fixed;top:20px;right:20px;z-index:1000;"/>
+        
+        <!-- 标题 -->
+        <swui:Label text="游戏账号管理助手" font-size="24" font-weight="bold" 
+                     foreground="#7289da" alignment="center" margin-bottom="20"/>
+        
+        <!-- Token区域 -->
+        <swui:Card style="card-style">
+            <swui:Label text="🔑 Token管理" font-size="18" font-weight="bold" margin-bottom="10"/>
+            
+            <swui:Layout type="horizontal" margin-bottom="10">
+                <swui:TextBox id="token-input" width="400" placeholder="Token将自动填充或手动输入..." 
+                               password="true" height="35"/>
+                <swui:Button text="📋 复制" onclick="copyToken()" style="button-primary" margin-left="10"/>
+                <swui:Button text="✔️ 确认" onclick="manualTokenInput()" style="button-success" margin-left="5"/>
+                <swui:Label id="token-status" text="● 未登录" foreground="#f04747" margin-left="10"/>
+            </swui:Layout>
+        </swui:Card>
+        
+        <!-- QQ二维码区域 -->
+        <swui:Card style="card-style">
+            <swui:Label text="📱 QQ扫码登录" font-size="18" font-weight="bold" margin-bottom="10"/>
+            
+            <swui:Layout type="horizontal" alignment="center">
+                <swui:Layout type="vertical" alignment="center">
+                    <swui:Container id="qr-code-container" width="200" height="200" 
+                                     style="border:2px solid #7289da;border-radius:10px;padding:5px;"/>
+                    <swui:Button text="🔄 刷新二维码" onclick="refreshQRCode()" 
+                                  style="button-primary" margin-top="10"/>
+                </swui:Layout>
+                
+                <swui:Layout type="vertical" margin-left="30">
+                    <swui:Label text="使用说明：" font-size="16" font-weight="bold" margin-bottom="10"/>
+                    <swui:Label text="1. 打开手机QQ扫描左侧二维码" font-size="14"/>
+                    <swui:Label text="2. 在手机上确认授权登录" font-size="14"/>
+                    <swui:Label text="3. 等待自动获取Token" font-size="14"/>
+                    <swui:Label text="4. Token将自动填充到上方输入框" font-size="14"/>
+                </swui:Layout>
+            </swui:Layout>
+        </swui:Card>
+        
+        <!-- 游戏登录区域 -->
+        <swui:Card style="card-style">
+            <swui:Label text="🎮 游戏登录" font-size="18" font-weight="bold" margin-bottom="10"/>
+            
+            <swui:Layout type="horizontal" alignment="space-around">
+                <swui:Layout type="vertical" alignment="center">
+                    <swui:Image src="./icons/delta_force.png" width="80" height="80" margin-bottom="5"/>
+                    <swui:Label text="三角洲行动" font-size="14" margin-bottom="5"/>
+                    <swui:Button text="🚀 登录" onclick="loginGame('delta_force')" 
+                                  style="button-success" width="120"/>
+                </swui:Layout>
+                
+                <swui:Layout type="vertical" alignment="center">
+                    <swui:Image src="./icons/dark_zone.png" width="80" height="80" margin-bottom="5"/>
+                    <swui:Label text="暗区突围" font-size="14" margin-bottom="5"/>
+                    <swui:Button text="🚀 登录" onclick="loginGame('dark_zone')" 
+                                  style="button-success" width="120"/>
+                </swui:Layout>
+                
+                <swui:Layout type="vertical" alignment="center">
+                    <swui:Image src="./icons/peace_elite.png" width="80" height="80" margin-bottom="5"/>
+                    <swui:Label text="和平精英" font-size="14" margin-bottom="5"/>
+                    <swui:Button text="🚀 登录" onclick="loginGame('peace_elite')" 
+                                  style="button-success" width="120"/>
+                </swui:Layout>
+            </swui:Layout>
+        </swui:Card>
+        
+        <!-- 账号列表区域 -->
+        <swui:Card style="card-style">
+            <swui:Layout type="horizontal" alignment="space-between" margin-bottom="10">
+                <swui:Label text="📋 已保存的账号" font-size="18" font-weight="bold"/>
+                <swui:Button text="🗑️ 清空所有" onclick="clearAllAccounts()" 
+                              style="button-danger" width="100"/>
+            </swui:Layout>
+            
+            <swui:ScrollView height="200">
+                <swui:Container id="account-list" width="100%">
+                    <!-- 动态生成的账号卡片 -->
+                </swui:Container>
+            </swui:ScrollView>
+        </swui:Card>
+        
+    </swui:Layout>
+
+    <!-- 底部状态栏 -->
+    <swui:StatusBar>
+        <swui:Label text="版本 1.0.0 | 游戏账号管理助手" font-size="12" foreground="#888"/>
+    </swui:StatusBar>
+
+</swui:Application>
