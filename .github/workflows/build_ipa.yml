@@ -13,8 +13,8 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Select Xcode
-      run: sudo xcode-select -switch /Applications/Xcode_15.0.app
+    - name: Show available Xcode versions
+      run: ls /Applications/ | grep Xcode
     
     - name: Create LaunchScreen.storyboard
       run: |
