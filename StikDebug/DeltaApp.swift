@@ -1,6 +1,7 @@
 import SwiftUI
 import CoreImage
 import CryptoKit
+import WebKit
 
 // MARK: - QQ 互联配置
 struct QQConfig {
@@ -19,6 +20,20 @@ struct QQConfig {
         return comps.url!
     }
 }
+
+// MARK: - 游戏配置
+struct GameConfig: Identifiable {
+    let id = UUID()
+    let name: String
+    let scheme: String
+    let icon: String
+}
+
+let supportedGames: [GameConfig] = [
+    GameConfig(name: "三角洲行动", scheme: "seecoon://", icon: "figure.martial.arts"),
+    GameConfig(name: "暗区突围", scheme: "darkzone://", icon: "target"),
+    GameConfig(name: "和平精英", scheme: "pubgmhd://", icon: "scope")
+]
 
 // MARK: - AppDelegate
 class AppDelegate: NSObject, UIApplicationDelegate {
@@ -153,100 +168,60 @@ class DataManager: ObservableObject {
 }
 
 // MARK: - 页面路由
-enum AppPage { case home, authQR, accountList, tokenCheck }
+enum AppPage { case home, capture, accountList, tokenLogin }
 
-// MARK: - 通用全屏容器
-struct FullScreenView<Content: View>: View {
-    let content: Content
-    init(@ViewBuilder content: () -> Content) {
-        self.content = content()
-    }
-    var body: some View {
+// MARK: - 全局全屏修饰器
+struct FullScreenModifier: ViewModifier {
+    func body(content: Content) -> some View {
         content
-            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
-            .edgesIgnoringSafeArea(.all)
+            .frame(
+                minWidth: 0, maxWidth: .infinity,
+                minHeight: 0, maxHeight: .infinity,
+                alignment: .center
+            )
+            .ignoresSafeArea(.all)
     }
 }
 
-// MARK: - QQ 授权扫码页面
-struct QQAuthView: View {
-    @EnvironmentObject var manager: DataManager
-    @Binding var isPresented: Bool
-    @StateObject private var authManager = QQAuthManager.shared
-    @State private var qrImage: UIImage? = nil
-    
-    var body: some View {
-        NavigationView {
-            FullScreenView {
-                VStack(spacing: 20) {
-                    if let qrImage = qrImage {
-                        Image(uiImage: qrImage).resizable().scaledToFit().frame(width: 250, height: 250)
-                        Text("请使用 QQ 扫描此二维码").foregroundColor(.black)
-                    } else {
-                        ProgressView("生成二维码中...")
-                    }
-                    if let token = authManager.accessToken {
-                        Text("获取到 token: \(token.prefix(10))...").foregroundColor(.green)
-                        Button("复制 Token") { UIPasteboard.general.string = token }
-                    }
-                }
-                .padding()
-                .background(Color.white)
-            }
-            .onAppear {
-                if let url = authManager.startAuth() {
-                    qrImage = QRGenerator.createQRCode(text: url.absoluteString)
-                }
-            }
-            .onChange(of: authManager.accessToken) { _ in
-                if authManager.accessToken != nil { isPresented = false }
-            }
-            .navigationTitle("QQ 授权登录")
-        }
+extension View {
+    func fullScreen() -> some View {
+        self.modifier(FullScreenModifier())
     }
 }
 
-// MARK: - 主界面（竖屏，白底全屏）
+// MARK: - 主界面
 struct HomeView: View {
     @Binding var currentPage: AppPage
-    @State private var showQQAuth = false
     
     var body: some View {
-        FullScreenView {
-            ZStack {
-                Color.white
+        ZStack {
+            Color.white.ignoresSafeArea(.all)
+            
+            VStack(spacing: 0) {
+                Spacer()
                 
-                VStack(spacing: 0) {
-                    Spacer()
+                Text("三角洲行动助手")
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundColor(.black)
+                    .padding(.bottom, 40)
+                
+                VStack(spacing: 18) {
+                    Button("挂机收号 + QQ扫码") { currentPage = .capture }
+                        .homeButtonStyle(color: .red)
                     
-                    Text("三角洲行动助手")
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(.black)
-                        .padding(.bottom, 40)
+                    Button("账号库存") { currentPage = .accountList }
+                        .homeButtonStyle(color: .green)
                     
-                    VStack(spacing: 18) {
-                        Button("挂机收号（横屏）") { currentPage = .authQR }
-                            .homeButtonStyle(color: .red)
-                        
-                        Button("QQ 扫码登录获取 Token") { showQQAuth = true }
-                            .homeButtonStyle(color: .orange)
-                        
-                        Button("账号库存") { currentPage = .accountList }
-                            .homeButtonStyle(color: .green)
-                        
-                        Button("Token 校验 + 一键上号") { currentPage = .tokenCheck }
-                            .homeButtonStyle(color: .blue)
-                    }
-                    .padding(.horizontal, 30)
-                    
-                    Spacer()
+                    Button("Token 一键上号") { currentPage = .tokenLogin }
+                        .homeButtonStyle(color: .blue)
                 }
+                .padding(.horizontal, 30)
+                
+                Spacer()
             }
         }
+        .fullScreen()
         .onAppear { OrientationHelper.lockPortrait() }
-        .sheet(isPresented: $showQQAuth) {
-            QQAuthView(isPresented: $showQQAuth).environmentObject(DataManager())
-        }
     }
 }
 
@@ -263,16 +238,18 @@ extension View {
     }
 }
 
-// MARK: - 挂机收号页面（强制横屏，白底全屏）
-struct PageA: View {
+// MARK: - 挂机收号 + QQ扫码 合并页面（横屏全屏）
+struct CapturePage: View {
     @EnvironmentObject var manager: DataManager
     @Binding var currentPage: AppPage
+    @State private var selectedMode = 0
     @State private var catchCount = 0
     @State private var qrImage = UIImage()
     @State private var session = ""
     @State private var clipTask: Task<Void, Never>?
     @State private var loopTask: Task<Void, Never>?
     @State private var lastPaste = ""
+    @StateObject private var authManager = QQAuthManager.shared
     
     func newSession() {
         loopTask?.cancel()
@@ -329,27 +306,35 @@ struct PageA: View {
     }
     
     var body: some View {
-        FullScreenView {
-            ZStack {
-                Color.white
-                
-                VStack(spacing: 0) {
-                    HStack {
-                        Button("← 返回首页") {
-                            OrientationHelper.lockPortrait()
-                            loopTask?.cancel()
-                            clipTask?.cancel()
-                            currentPage = .home
-                        }
-                        .foregroundColor(.blue)
-                        .font(.system(size: 16))
-                        Spacer()
+        ZStack {
+            Color.white.ignoresSafeArea(.all)
+            
+            VStack(spacing: 0) {
+                HStack {
+                    Button("← 返回首页") {
+                        OrientationHelper.lockPortrait()
+                        loopTask?.cancel()
+                        clipTask?.cancel()
+                        currentPage = .home
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 10)
-                    
+                    .foregroundColor(.blue)
+                    .font(.system(size: 16))
                     Spacer()
-                    
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                
+                Picker("模式", selection: $selectedMode) {
+                    Text("挂机收号").tag(0)
+                    Text("QQ扫码").tag(1)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 40)
+                .padding(.vertical, 10)
+                
+                Spacer()
+                
+                if selectedMode == 0 {
                     Image(uiImage: qrImage)
                         .resizable()
                         .scaledToFit()
@@ -359,14 +344,47 @@ struct PageA: View {
                         .foregroundColor(.gray)
                         .font(.system(size: 16))
                         .padding(.top, 15)
+                } else {
+                    if let url = authManager.startAuth() {
+                        Image(uiImage: QRGenerator.createQRCode(text: url.absoluteString))
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 260, height: 260)
+                    }
                     
-                    Spacer()
+                    if let token = authManager.accessToken {
+                        Text("Token: \(String(token.prefix(15)))...")
+                            .foregroundColor(.green)
+                            .font(.system(size: 14))
+                            .padding(.top, 10)
+                        Button("复制 Token") {
+                            UIPasteboard.general.string = authManager.accessToken
+                        }
+                        .foregroundColor(.blue)
+                    } else {
+                        Text("请使用 QQ 扫描此二维码")
+                            .foregroundColor(.gray)
+                            .font(.system(size: 16))
+                            .padding(.top, 15)
+                    }
                 }
+                
+                Spacer()
             }
         }
+        .fullScreen()
         .onAppear {
             OrientationHelper.lockLandscape()
-            newSession()
+            if selectedMode == 0 { newSession() }
+        }
+        .onChange(of: selectedMode) { mode in
+            if mode == 0 {
+                newSession()
+            } else {
+                loopTask?.cancel()
+                clipTask?.cancel()
+                _ = authManager.startAuth()
+            }
         }
         .onDisappear {
             loopTask?.cancel()
@@ -376,121 +394,139 @@ struct PageA: View {
     }
 }
 
-// MARK: - 账号库存页面（竖屏，白底全屏）
+// MARK: - 账号库存页面
 struct PageB: View {
     @EnvironmentObject var manager: DataManager
     @Binding var currentPage: AppPage
     
     var body: some View {
-        FullScreenView {
-            ZStack {
-                Color.white
-                
-                VStack(spacing: 0) {
-                    HStack {
-                        Button("← 返回首页") { currentPage = .home }
-                            .foregroundColor(.blue)
-                            .font(.system(size: 16))
-                        Spacer()
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 10)
-                    
-                    Text("账号库存")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(.black)
-                        .padding(.vertical, 12)
-                    
-                    List(manager.accounts) { acc in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("OpenID: \(acc.openid)")
-                                .foregroundColor(.black)
-                                .font(.system(size: 14))
-                            Text("Token: \(String(acc.seecoon_token.prefix(20)))...")
-                                .font(.system(size: 11))
-                                .foregroundColor(.gray)
-                            HStack {
-                                Button("复制") { UIPasteboard.general.string = acc.seecoon_token }
-                                    .font(.system(size: 13))
-                                Button("删除", role: .destructive) { manager.deleteAccount(uuid: acc.id) }
-                                    .font(.system(size: 13))
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    .listStyle(.plain)
+        ZStack {
+            Color.white.ignoresSafeArea(.all)
+            
+            VStack(spacing: 0) {
+                HStack {
+                    Button("← 返回首页") { currentPage = .home }
+                        .foregroundColor(.blue)
+                        .font(.system(size: 16))
+                    Spacer()
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                
+                Text("账号库存")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(.black)
+                    .padding(.vertical, 12)
+                
+                List(manager.accounts) { acc in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("OpenID: \(acc.openid)")
+                            .foregroundColor(.black)
+                            .font(.system(size: 14))
+                        Text("Token: \(String(acc.seecoon_token.prefix(20)))...")
+                            .font(.system(size: 11))
+                            .foregroundColor(.gray)
+                        HStack {
+                            Button("复制") { UIPasteboard.general.string = acc.seecoon_token }
+                                .font(.system(size: 13))
+                            Button("删除", role: .destructive) { manager.deleteAccount(uuid: acc.id) }
+                                .font(.system(size: 13))
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .listStyle(.plain)
             }
         }
+        .fullScreen()
         .onAppear { OrientationHelper.lockPortrait() }
     }
 }
 
-// MARK: - Token 校验与上号（竖屏，白底全屏）
-struct PageC: View {
+// MARK: - Token 一键上号（含选择游戏）
+struct TokenLoginPage: View {
     @Binding var currentPage: AppPage
     @State var token = ""
+    @State var selectedGame = 0
     @State var status = ""
     
     var body: some View {
-        FullScreenView {
-            ZStack {
-                Color.white
-                
-                VStack(spacing: 0) {
-                    HStack {
-                        Button("← 返回首页") { currentPage = .home }
-                            .foregroundColor(.blue)
-                            .font(.system(size: 16))
-                        Spacer()
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 10)
-                    
-                    Spacer()
-                    
-                    Text("Token 校验与一键上号")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.black)
-                        .padding(.bottom, 25)
-                    
-                    TextField("粘贴 Seecoon Token", text: $token)
-                        .textFieldStyle(.roundedBorder)
-                        .padding(.horizontal, 30)
+        ZStack {
+            Color.white.ignoresSafeArea(.all)
+            
+            VStack(spacing: 0) {
+                HStack {
+                    Button("← 返回首页") { currentPage = .home }
+                        .foregroundColor(.blue)
                         .font(.system(size: 16))
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                
+                Spacer()
+                
+                Text("Token 一键上号")
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.black)
+                    .padding(.bottom, 20)
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("选择游戏：")
+                        .foregroundColor(.gray)
+                        .font(.system(size: 14))
                     
-                    Button("校验有效性") { check() }
-                        .foregroundColor(.white)
-                        .font(.system(size: 17))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 46)
-                        .background(Color.blue)
-                        .cornerRadius(10)
-                        .padding(.horizontal, 30)
-                        .padding(.top, 18)
-                    
-                    Text(status)
-                        .foregroundColor(status.contains("✅") ? .green : .red)
-                        .font(.system(size: 15))
-                        .padding(.top, 10)
-                    
-                    Button("一键上号") {
-                        UIApplication.shared.open(URL(string: "seecoon://login?token=\(token)")!)
+                    Picker("选择游戏", selection: $selectedGame) {
+                        ForEach(0..<supportedGames.count, id: \.self) { i in
+                            HStack {
+                                Image(systemName: supportedGames[i].icon)
+                                Text(supportedGames[i].name)
+                            }
+                            .tag(i)
+                        }
                     }
-                    .disabled(token.isEmpty)
+                    .pickerStyle(.segmented)
+                }
+                .padding(.horizontal, 25)
+                .padding(.bottom, 20)
+                
+                TextField("粘贴 Token", text: $token)
+                    .textFieldStyle(.roundedBorder)
+                    .padding(.horizontal, 25)
+                    .font(.system(size: 16))
+                
+                Button("校验 Token") { check() }
                     .foregroundColor(.white)
                     .font(.system(size: 17))
                     .frame(maxWidth: .infinity)
                     .frame(height: 46)
-                    .background(Color.orange)
+                    .background(Color.blue)
                     .cornerRadius(10)
-                    .padding(.horizontal, 30)
-                    .padding(.top, 10)
-                    
-                    Spacer()
+                    .padding(.horizontal, 25)
+                    .padding(.top, 18)
+                
+                Text(status)
+                    .foregroundColor(status.contains("✅") ? .green : .red)
+                    .font(.system(size: 15))
+                    .padding(.top, 8)
+                
+                Button("一键拉起 \(supportedGames[selectedGame].name)") {
+                    loginGame()
                 }
+                .disabled(token.isEmpty)
+                .foregroundColor(.white)
+                .font(.system(size: 17))
+                .frame(maxWidth: .infinity)
+                .frame(height: 46)
+                .background(Color.orange)
+                .cornerRadius(10)
+                .padding(.horizontal, 25)
+                .padding(.top, 12)
+                
+                Spacer()
             }
         }
+        .fullScreen()
         .onAppear { OrientationHelper.lockPortrait() }
     }
     
@@ -501,6 +537,14 @@ struct PageC: View {
             status = "✅ Token 格式有效"
         } else {
             status = "❌ Token 格式无效"
+        }
+    }
+    
+    func loginGame() {
+        let game = supportedGames[selectedGame]
+        let loginURL = "\(game.scheme)login?token=\(token)"
+        if let url = URL(string: loginURL) {
+            UIApplication.shared.open(url)
         }
     }
 }
@@ -518,12 +562,12 @@ struct DeltaApp: App {
                 switch currentPage {
                 case .home:
                     HomeView(currentPage: $currentPage).environmentObject(manager)
-                case .authQR:
-                    PageA(currentPage: $currentPage).environmentObject(manager)
+                case .capture:
+                    CapturePage(currentPage: $currentPage).environmentObject(manager)
                 case .accountList:
                     PageB(currentPage: $currentPage).environmentObject(manager)
-                case .tokenCheck:
-                    PageC(currentPage: $currentPage)
+                case .tokenLogin:
+                    TokenLoginPage(currentPage: $currentPage)
                 }
             }
         }
