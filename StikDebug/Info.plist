@@ -41,5 +41,17 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<!-- 必须：允许查询其他应用的 URL Scheme -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<!-- 三角洲行动 可能的 scheme 之一，请根据实际情况修改 -->
+		<string>deltaforce</string>
+		<string>df</string>
+		<!-- 暗区突围 可能的 scheme -->
+		<string>darkzone</string>
+		<string>aqtw</string>
+		<!-- 和平精英 可能的 scheme -->
+		<string>pubgm</string>
+	</array>
 </dict>
 </plist>
