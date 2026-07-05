@@ -43,13 +43,11 @@
 	</dict>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
-		<!-- 三角洲行动 真实 Scheme -->
+		<!-- 保留原始注册的 scheme，便于未来扩展 -->
 		<string>tencent100823541</string>
 		<string>tencentlaunch100823541</string>
 		<string>QQ06009135</string>
-		<!-- 暗区突围 / 和平精英 请自行替换为真实 Scheme -->
-		<string>darkzone</string>
-		<string>pubgm</string>
+		<string>dfmobile</string>
 	</array>
 </dict>
 </plist>
