@@ -102,7 +102,8 @@ class GameLoginManager: ObservableObject {
         }
     }
 
-    func launchGame(gameName: String, urlScheme: String, token: String? = nil) {
+    // 最终版：复制 Token 到剪贴板，提示用户手动打开游戏粘贴
+    func launchGame(gameName: String, token: String? = nil) {
         let tokenToUse = token ?? currentToken
         guard !tokenToUse.isEmpty else {
             showBannerMsg("请先输入或选择Token", type: .warning)
@@ -110,48 +111,21 @@ class GameLoginManager: ObservableObject {
         }
 
         UIPasteboard.general.string = tokenToUse
+        showBannerMsg("Token已复制，请打开\(gameName)并粘贴登录", type: .success)
 
-        let urlString = "\(urlScheme)://login?token=\(tokenToUse)"
-        guard let url = URL(string: urlString) else {
-            showBannerMsg("URL Scheme 格式错误", type: .error)
-            return
-        }
-
-        print("尝试唤起：\(urlString)")
-
-        if UIApplication.shared.canOpenURL(url) {
-            UIApplication.shared.open(url) { success in
-                if success {
-                    self.showBannerMsg("正在唤起\(gameName)...", type: .success)
-                    let newAccount = GameAccount(
-                        id: UUID().uuidString,
-                        gameName: gameName,
-                        uid: "Token登录",
-                        username: "已注入Token",
-                        loginTime: self.getCurrentTimeString()
-                    )
-                    self.accounts.append(newAccount)
-                    self.saveAccounts()
-                } else {
-                    self.showBannerMsg("唤起\(gameName)失败", type: .error)
-                }
-            }
-        } else {
-            showBannerMsg("未安装\(gameName)或Scheme错误", type: .warning)
-            let newAccount = GameAccount(
-                id: UUID().uuidString,
-                gameName: gameName,
-                uid: "未唤起",
-                username: "Token已准备",
-                loginTime: self.getCurrentTimeString()
-            )
-            self.accounts.append(newAccount)
-            self.saveAccounts()
-        }
+        let newAccount = GameAccount(
+            id: UUID().uuidString,
+            gameName: gameName,
+            uid: "手动登录",
+            username: "Token已就绪",
+            loginTime: getCurrentTimeString()
+        )
+        accounts.append(newAccount)
+        saveAccounts()
     }
 
     func oneClickLogin(token: String? = nil) {
-        launchGame(gameName: "三角洲行动", urlScheme: "tencent100823541", token: token)
+        launchGame(gameName: "三角洲行动", token: token)
     }
 
     func copyAccountUID(_ uid: String) {
@@ -542,18 +516,18 @@ struct TokenCard: View {
     }
 }
 
-// MARK: - 游戏登录页面（三角洲行动已改为真实 Scheme）
+// MARK: - 游戏登录页面（剪贴板+手动启动）
 struct GameLoginView: View {
     @StateObject private var manager = GameLoginManager()
     @State private var inputToken = ""
     @State private var useIndependentToken = false
     @FocusState private var isTokenFocused: Bool
 
-    // 三角洲行动已使用真实 Scheme，其他游戏请自行替换
+    // 游戏列表（urlScheme 不再使用，但保留以兼容 UI）
     private let games: [(name: String, icon: String, color: Color, scheme: String)] = [
-        ("三角洲行动", "arrow.triangle.swap", Color(red: 1.0, green: 0.45, blue: 0.0), "tencent100823541"),
-        ("暗区突围", "shield.fill", Color(red: 0.9, green: 0.15, blue: 0.15), "darkzone"), // 待替换
-        ("和平精英", "scope", Color(red: 0.1, green: 0.8, blue: 0.3), "pubgm")            // 待替换
+        ("三角洲行动", "arrow.triangle.swap", Color(red: 1.0, green: 0.45, blue: 0.0), "dfmobile"),
+        ("暗区突围", "shield.fill", Color(red: 0.9, green: 0.15, blue: 0.15), "darkzone"),
+        ("和平精英", "scope", Color(red: 0.1, green: 0.8, blue: 0.3), "pubgm")
     ]
 
     var body: some View {
@@ -614,12 +588,13 @@ struct GameLoginView: View {
                             .padding().background(Color.white.opacity(0.05)).cornerRadius(16)
                         }
 
+                        // 一键复制
                         Button(action: {
                             manager.oneClickLogin(token: useIndependentToken ? inputToken : nil)
                         }) {
                             HStack {
                                 Image(systemName: "bolt.fill")
-                                Text("一键唤起三角洲行动")
+                                Text("一键复制Token（三角洲行动）")
                                     .fontWeight(.semibold)
                             }
                             .font(.subheadline)
@@ -630,24 +605,32 @@ struct GameLoginView: View {
                             .cornerRadius(12)
                         }
 
-                        Text("或选择游戏唤起")
+                        Text("或选择游戏复制Token")
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.4))
 
                         ForEach(games, id: \.name) { game in
-                            GameLoginCard(
-                                name: game.name,
-                                icon: game.icon,
-                                color: game.color,
-                                urlScheme: game.scheme,
-                                manager: manager,
-                                independentToken: useIndependentToken ? inputToken : nil
-                            )
+                            Button {
+                                manager.launchGame(gameName: game.name, token: useIndependentToken ? inputToken : nil)
+                            } label: {
+                                HStack(spacing: 16) {
+                                    Image(systemName: game.icon).font(.system(size: 28)).foregroundColor(.white)
+                                        .frame(width: 56, height: 56).background(game.color).clipShape(RoundedRectangle(cornerRadius: 14))
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(game.name).font(.headline).foregroundColor(.white)
+                                        Text("复制Token并手动打开游戏").font(.caption).foregroundColor(.white.opacity(0.5))
+                                    }
+                                    Spacer()
+                                    Text("📋 复制").font(.subheadline).fontWeight(.medium).foregroundColor(.white).padding(.horizontal, 20).padding(.vertical, 10).background(game.color).cornerRadius(8)
+                                }
+                                .padding(14).background(Color.white.opacity(0.05)).cornerRadius(16)
+                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                            }
                         }
 
                         if !manager.accounts.isEmpty {
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("登录记录").font(.subheadline).foregroundColor(.white.opacity(0.6))
+                                Text("操作记录").font(.subheadline).foregroundColor(.white.opacity(0.6))
                                 ForEach(manager.accounts) { acc in
                                     HStack {
                                         VStack(alignment: .leading, spacing: 4) {
@@ -657,7 +640,6 @@ struct GameLoginView: View {
                                         }
                                         Spacer()
                                         HStack(spacing: 8) {
-                                            Button("复制UID") { manager.copyAccountUID(acc.uid) }.font(.caption).foregroundColor(.blue)
                                             Button("删除") { manager.deleteAccount(id: acc.id) }.font(.caption).foregroundColor(.red)
                                         }
                                     }.padding().background(Color.white.opacity(0.05)).cornerRadius(10)
@@ -678,34 +660,6 @@ struct GameLoginView: View {
     private func mask(_ token: String) -> String {
         guard token.count > 10 else { return token }
         return String(token.prefix(6)) + "****" + String(token.suffix(4))
-    }
-}
-
-struct GameLoginCard: View {
-    let name: String
-    let icon: String
-    let color: Color
-    let urlScheme: String
-    @ObservedObject var manager: GameLoginManager
-    var independentToken: String?
-
-    var body: some View {
-        Button {
-            manager.launchGame(gameName: name, urlScheme: urlScheme, token: independentToken)
-        } label: {
-            HStack(spacing: 16) {
-                Image(systemName: icon).font(.system(size: 28)).foregroundColor(.white)
-                    .frame(width: 56, height: 56).background(color).clipShape(RoundedRectangle(cornerRadius: 14))
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(name).font(.headline).foregroundColor(.white)
-                    Text("点击唤起游戏").font(.caption).foregroundColor(.white.opacity(0.5))
-                }
-                Spacer()
-                Text("🚀 唤起").font(.subheadline).fontWeight(.medium).foregroundColor(.white).padding(.horizontal, 20).padding(.vertical, 10).background(color).cornerRadius(8)
-            }
-            .padding(14).background(Color.white.opacity(0.05)).cornerRadius(16)
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
-        }
     }
 }
 
