@@ -102,7 +102,7 @@ class GameLoginManager: ObservableObject {
         }
     }
 
-    // 最终版：复制 Token 到剪贴板，提示用户手动打开游戏粘贴
+    // 最终版：复制 Token 到剪贴板，提示手动打开游戏
     func launchGame(gameName: String, token: String? = nil) {
         let tokenToUse = token ?? currentToken
         guard !tokenToUse.isEmpty else {
@@ -202,7 +202,7 @@ struct DeltaApp: App {
     }
 }
 
-// MARK: - 顶部横幅
+// MARK: - 顶部横幅（悬浮不占空间）
 struct TopBanner: View {
     let message: String
     let type: GameLoginManager.BannerType
@@ -236,6 +236,8 @@ struct TopBanner: View {
         .background(bgColor)
         .cornerRadius(10)
         .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .shadow(radius: 5)
         .transition(.move(edge: .top).combined(with: .opacity))
     }
 }
@@ -325,56 +327,56 @@ struct QRCodeView: View {
     var body: some View {
         ZStack {
             Color(red: 0.08, green: 0.10, blue: 0.16).ignoresSafeArea()
-            VStack(spacing: 0) {
-                if manager.showBanner {
-                    TopBanner(message: manager.bannerMessage, type: manager.bannerType)
-                }
-                ScrollView {
-                    VStack(spacing: 24) {
-                        VStack(spacing: 12) {
-                            Image(systemName: "gamecontroller.fill").font(.system(size: 40)).foregroundColor(.white)
-                                .frame(width: 80, height: 80)
-                                .background(LinearGradient(colors: [.blue, .purple], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                .clipShape(RoundedRectangle(cornerRadius: 20))
-                            Text("三角洲行动").font(.title2).fontWeight(.bold).foregroundColor(.white)
-                            Text("QQ账号授权登录").font(.subheadline).foregroundColor(.white.opacity(0.5))
-                        }.padding(.top, 40)
+            ScrollView {
+                VStack(spacing: 24) {
+                    VStack(spacing: 12) {
+                        Image(systemName: "gamecontroller.fill").font(.system(size: 40)).foregroundColor(.white)
+                            .frame(width: 80, height: 80)
+                            .background(LinearGradient(colors: [.blue, .purple], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                        Text("三角洲行动").font(.title2).fontWeight(.bold).foregroundColor(.white)
+                        Text("QQ账号授权登录").font(.subheadline).foregroundColor(.white.opacity(0.5))
+                    }.padding(.top, 40)
 
-                        VStack(spacing: 20) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 20).fill(Color.white).frame(width: 220, height: 220)
-                                AsyncImage(url: URL(string: manager.generateQRCodeURL())) { image in
-                                    image.resizable().scaledToFit().frame(width: 185, height: 185)
-                                } placeholder: {
-                                    Image(systemName: "qrcode").font(.system(size: 80)).foregroundColor(.black)
-                                }
-                                if expired {
-                                    RoundedRectangle(cornerRadius: 20).fill(Color.black.opacity(0.7)).frame(width: 220, height: 220)
-                                    VStack(spacing: 12) {
-                                        Image(systemName: "arrow.clockwise").font(.system(size: 40)).foregroundColor(.white)
-                                        Text("二维码已过期").font(.headline).foregroundColor(.white)
-                                        Text("点击刷新").font(.caption).foregroundColor(.white.opacity(0.7))
-                                    }.onTapGesture { refreshQRCode() }
-                                }
+                    VStack(spacing: 20) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 20).fill(Color.white).frame(width: 220, height: 220)
+                            AsyncImage(url: URL(string: manager.generateQRCodeURL())) { image in
+                                image.resizable().scaledToFit().frame(width: 185, height: 185)
+                            } placeholder: {
+                                Image(systemName: "qrcode").font(.system(size: 80)).foregroundColor(.black)
                             }
-                            HStack(spacing: 6) {
-                                Image(systemName: "clock").font(.caption).foregroundColor(.orange)
-                                Text("有效期 \(String(format: "%02d:%02d", countdown/60, countdown%60))").font(.caption).foregroundColor(.orange)
+                            if expired {
+                                RoundedRectangle(cornerRadius: 20).fill(Color.black.opacity(0.7)).frame(width: 220, height: 220)
+                                VStack(spacing: 12) {
+                                    Image(systemName: "arrow.clockwise").font(.system(size: 40)).foregroundColor(.white)
+                                    Text("二维码已过期").font(.headline).foregroundColor(.white)
+                                    Text("点击刷新").font(.caption).foregroundColor(.white.opacity(0.7))
+                                }.onTapGesture { refreshQRCode() }
                             }
-                            Text("请使用手机QQ扫描二维码").font(.subheadline).foregroundColor(.white)
-                            Text("扫描后Token将自动储存").font(.caption).foregroundColor(.white.opacity(0.5))
                         }
-                        .padding(24).background(Color.white.opacity(0.05)).cornerRadius(20)
-                        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                        HStack(spacing: 6) {
+                            Image(systemName: "clock").font(.caption).foregroundColor(.orange)
+                            Text("有效期 \(String(format: "%02d:%02d", countdown/60, countdown%60))").font(.caption).foregroundColor(.orange)
+                        }
+                        Text("请使用手机QQ扫描二维码").font(.subheadline).foregroundColor(.white)
+                        Text("扫描后Token将自动储存").font(.caption).foregroundColor(.white.opacity(0.5))
+                    }
+                    .padding(24).background(Color.white.opacity(0.05)).cornerRadius(20)
+                    .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.1), lineWidth: 1))
 
-                        Button(action: { manager.simulateQRCodeScan() }) {
-                            Label("模拟扫码获取Token", systemImage: "iphone").font(.subheadline).foregroundColor(.white)
-                                .frame(maxWidth: .infinity).padding(.vertical, 14)
-                                .background(Color.blue.opacity(0.3)).cornerRadius(12)
-                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.blue.opacity(0.5), lineWidth: 1))
-                        }
-                    }.padding(.horizontal, 24).padding(.bottom, 40)
-                }
+                    Button(action: { manager.simulateQRCodeScan() }) {
+                        Label("模拟扫码获取Token", systemImage: "iphone").font(.subheadline).foregroundColor(.white)
+                            .frame(maxWidth: .infinity).padding(.vertical, 14)
+                            .background(Color.blue.opacity(0.3)).cornerRadius(12)
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.blue.opacity(0.5), lineWidth: 1))
+                    }
+                }.padding(.horizontal, 24).padding(.bottom, 40)
+            }
+        }
+        .overlay(alignment: .top) {
+            if manager.showBanner {
+                TopBanner(message: manager.bannerMessage, type: manager.bannerType)
             }
         }
         .navigationTitle("QQ扫码登录")
@@ -404,73 +406,73 @@ struct TokenManageView: View {
     var body: some View {
         ZStack {
             Color(red: 0.08, green: 0.10, blue: 0.16).ignoresSafeArea()
-            VStack(spacing: 0) {
-                if manager.showBanner {
-                    TopBanner(message: manager.bannerMessage, type: manager.bannerType)
-                }
-                ScrollView {
-                    VStack(spacing: 16) {
-                        if manager.isLoggedIn {
-                            VStack(spacing: 8) {
-                                HStack {
-                                    Circle().fill(Color.green).frame(width: 8, height: 8)
-                                    Text("当前使用").font(.caption).foregroundColor(.green)
-                                    Spacer()
-                                }
-                                HStack {
-                                    Text(manager.currentToken).font(.caption).foregroundColor(.white).lineLimit(1)
-                                    Spacer()
-                                    Button { manager.copyToken(manager.currentToken) } label: {
-                                        Image(systemName: "doc.on.doc").font(.caption).foregroundColor(.blue)
-                                    }
-                                    Button { manager.checkToken(manager.currentToken) { _ in } } label: {
-                                        Image(systemName: "checkmark.shield").font(.caption).foregroundColor(.green)
-                                    }
-                                }
-                            }
-                            .padding().background(Color.green.opacity(0.1)).cornerRadius(12)
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.green.opacity(0.3), lineWidth: 1))
-                        }
-
-                        VStack(spacing: 12) {
-                            Text("手动输入Token").font(.subheadline).foregroundColor(.white.opacity(0.6)).frame(maxWidth: .infinity, alignment: .leading)
-                            HStack(spacing: 8) {
-                                TextField("输入或粘贴Token", text: $inputToken)
-                                    .textFieldStyle(.plain).padding().background(Color.white.opacity(0.1)).cornerRadius(10)
-                                    .foregroundColor(.white).autocapitalization(.none).disableAutocorrection(true)
-                                    .focused($isInputFocused)
-                                    .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完成") { isInputFocused = false } } }
-                                Button("储存") {
-                                    if !inputToken.isEmpty { manager.saveToken(inputToken); inputToken = "" }
-                                    isInputFocused = false
-                                }
-                                .font(.subheadline).foregroundColor(.white).padding(.horizontal, 16).padding(.vertical, 14)
-                                .background(Color.orange).cornerRadius(10)
-                            }
-                        }.padding().background(Color.white.opacity(0.05)).cornerRadius(16)
-
-                        VStack(alignment: .leading, spacing: 12) {
+            ScrollView {
+                VStack(spacing: 16) {
+                    if manager.isLoggedIn {
+                        VStack(spacing: 8) {
                             HStack {
-                                Text("已储存Token").font(.subheadline).foregroundColor(.white.opacity(0.6))
+                                Circle().fill(Color.green).frame(width: 8, height: 8)
+                                Text("当前使用").font(.caption).foregroundColor(.green)
                                 Spacer()
-                                Text("\(manager.tokenRecords.count)个").font(.caption).foregroundColor(.white.opacity(0.4))
-                                if !manager.tokenRecords.isEmpty {
-                                    Button("清空") { manager.clearAllTokens() }.font(.caption).foregroundColor(.red)
+                            }
+                            HStack {
+                                Text(manager.currentToken).font(.caption).foregroundColor(.white).lineLimit(1)
+                                Spacer()
+                                Button { manager.copyToken(manager.currentToken) } label: {
+                                    Image(systemName: "doc.on.doc").font(.caption).foregroundColor(.blue)
+                                }
+                                Button { manager.checkToken(manager.currentToken) { _ in } } label: {
+                                    Image(systemName: "checkmark.shield").font(.caption).foregroundColor(.green)
                                 }
                             }
-                            if manager.tokenRecords.isEmpty {
-                                VStack(spacing: 12) {
-                                    Image(systemName: "tray").font(.system(size: 40)).foregroundColor(.white.opacity(0.3))
-                                    Text("暂无Token").font(.subheadline).foregroundColor(.white.opacity(0.4))
-                                }.frame(maxWidth: .infinity).padding(.vertical, 40)
-                            } else {
-                                ForEach(manager.tokenRecords) { record in
-                                    TokenCard(record: record, isCurrent: record.token == manager.currentToken, manager: manager)
-                                }
+                        }
+                        .padding().background(Color.green.opacity(0.1)).cornerRadius(12)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.green.opacity(0.3), lineWidth: 1))
+                    }
+
+                    VStack(spacing: 12) {
+                        Text("手动输入Token").font(.subheadline).foregroundColor(.white.opacity(0.6)).frame(maxWidth: .infinity, alignment: .leading)
+                        HStack(spacing: 8) {
+                            TextField("输入或粘贴Token", text: $inputToken)
+                                .textFieldStyle(.plain).padding().background(Color.white.opacity(0.1)).cornerRadius(10)
+                                .foregroundColor(.white).autocapitalization(.none).disableAutocorrection(true)
+                                .focused($isInputFocused)
+                                .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完成") { isInputFocused = false } } }
+                            Button("储存") {
+                                if !inputToken.isEmpty { manager.saveToken(inputToken); inputToken = "" }
+                                isInputFocused = false
                             }
-                        }.padding().background(Color.white.opacity(0.05)).cornerRadius(16)
-                    }.padding(16)
-                }
+                            .font(.subheadline).foregroundColor(.white).padding(.horizontal, 16).padding(.vertical, 14)
+                            .background(Color.orange).cornerRadius(10)
+                        }
+                    }.padding().background(Color.white.opacity(0.05)).cornerRadius(16)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("已储存Token").font(.subheadline).foregroundColor(.white.opacity(0.6))
+                            Spacer()
+                            Text("\(manager.tokenRecords.count)个").font(.caption).foregroundColor(.white.opacity(0.4))
+                            if !manager.tokenRecords.isEmpty {
+                                Button("清空") { manager.clearAllTokens() }.font(.caption).foregroundColor(.red)
+                            }
+                        }
+                        if manager.tokenRecords.isEmpty {
+                            VStack(spacing: 12) {
+                                Image(systemName: "tray").font(.system(size: 40)).foregroundColor(.white.opacity(0.3))
+                                Text("暂无Token").font(.subheadline).foregroundColor(.white.opacity(0.4))
+                            }.frame(maxWidth: .infinity).padding(.vertical, 40)
+                        } else {
+                            ForEach(manager.tokenRecords) { record in
+                                TokenCard(record: record, isCurrent: record.token == manager.currentToken, manager: manager)
+                            }
+                        }
+                    }.padding().background(Color.white.opacity(0.05)).cornerRadius(16)
+                }.padding(16)
+            }
+        }
+        .overlay(alignment: .top) {
+            if manager.showBanner {
+                TopBanner(message: manager.bannerMessage, type: manager.bannerType)
             }
         }
         .navigationTitle("Token管理")
@@ -516,14 +518,13 @@ struct TokenCard: View {
     }
 }
 
-// MARK: - 游戏登录页面（剪贴板+手动启动）
+// MARK: - 游戏登录页面
 struct GameLoginView: View {
     @StateObject private var manager = GameLoginManager()
     @State private var inputToken = ""
     @State private var useIndependentToken = false
     @FocusState private var isTokenFocused: Bool
 
-    // 游戏列表（urlScheme 不再使用，但保留以兼容 UI）
     private let games: [(name: String, icon: String, color: Color, scheme: String)] = [
         ("三角洲行动", "arrow.triangle.swap", Color(red: 1.0, green: 0.45, blue: 0.0), "dfmobile"),
         ("暗区突围", "shield.fill", Color(red: 0.9, green: 0.15, blue: 0.15), "darkzone"),
@@ -533,122 +534,120 @@ struct GameLoginView: View {
     var body: some View {
         ZStack {
             Color(red: 0.08, green: 0.10, blue: 0.16).ignoresSafeArea()
-            VStack(spacing: 0) {
-                if manager.showBanner {
-                    TopBanner(message: manager.bannerMessage, type: manager.bannerType)
-                }
-                ScrollView {
-                    VStack(spacing: 16) {
-                        HStack {
-                            Circle().fill(manager.isLoggedIn || !inputToken.isEmpty ? Color.green : Color.red).frame(width: 8, height: 8)
-                            Text(manager.isLoggedIn || !inputToken.isEmpty ? "Token已就绪" : "未选择Token")
-                                .font(.caption).foregroundColor(.white.opacity(0.7))
-                            Spacer()
-                            if manager.isLoggedIn {
-                                Button("检测") { manager.checkToken(manager.currentToken) { _ in } }.font(.caption).foregroundColor(.orange)
+            ScrollView {
+                VStack(spacing: 16) {
+                    HStack {
+                        Circle().fill(manager.isLoggedIn || !inputToken.isEmpty ? Color.green : Color.red).frame(width: 8, height: 8)
+                        Text(manager.isLoggedIn || !inputToken.isEmpty ? "Token已就绪" : "未选择Token")
+                            .font(.caption).foregroundColor(.white.opacity(0.7))
+                        Spacer()
+                        if manager.isLoggedIn {
+                            Button("检测") { manager.checkToken(manager.currentToken) { _ in } }.font(.caption).foregroundColor(.orange)
+                        }
+                    }
+                    .padding(.horizontal)
+
+                    VStack(spacing: 12) {
+                        Toggle("使用独立Token", isOn: $useIndependentToken).font(.subheadline).foregroundColor(.white)
+                        if useIndependentToken {
+                            HStack(spacing: 8) {
+                                TextField("输入独立Token", text: $inputToken)
+                                    .textFieldStyle(.plain).padding().background(Color.white.opacity(0.1)).cornerRadius(10)
+                                    .foregroundColor(.white).focused($isTokenFocused)
+                                    .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完成") { isTokenFocused = false } } }
+                                Button("储存") {
+                                    if !inputToken.isEmpty { manager.saveToken(inputToken); inputToken = "" }
+                                    isTokenFocused = false
+                                }.font(.caption).foregroundColor(.white).padding(.horizontal, 10).padding(.vertical, 14).background(Color.orange).cornerRadius(10)
                             }
                         }
-                        .padding(.horizontal)
+                    }
+                    .padding()
+                    .background(Color.white.opacity(0.05)).cornerRadius(16)
 
-                        VStack(spacing: 12) {
-                            Toggle("使用独立Token", isOn: $useIndependentToken).font(.subheadline).foregroundColor(.white)
-                            if useIndependentToken {
-                                HStack(spacing: 8) {
-                                    TextField("输入独立Token", text: $inputToken)
-                                        .textFieldStyle(.plain).padding().background(Color.white.opacity(0.1)).cornerRadius(10)
-                                        .foregroundColor(.white).focused($isTokenFocused)
-                                        .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完成") { isTokenFocused = false } } }
-                                    Button("储存") {
-                                        if !inputToken.isEmpty { manager.saveToken(inputToken); inputToken = "" }
-                                        isTokenFocused = false
-                                    }.font(.caption).foregroundColor(.white).padding(.horizontal, 10).padding(.vertical, 14).background(Color.orange).cornerRadius(10)
-                                }
-                            }
-                        }
-                        .padding()
-                        .background(Color.white.opacity(0.05)).cornerRadius(16)
-
-                        if !manager.tokenRecords.isEmpty && !useIndependentToken {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("选择已储存Token").font(.subheadline).foregroundColor(.white.opacity(0.6))
-                                ForEach(manager.tokenRecords) { record in
-                                    Button {
-                                        manager.selectToken(record.token)
-                                    } label: {
-                                        HStack {
-                                            Circle().fill(record.token == manager.currentToken ? Color.green : Color.clear).frame(width: 10, height: 10)
-                                            Text(mask(record.token)).font(.caption).foregroundColor(.white)
-                                            Spacer()
-                                            if record.token == manager.currentToken { Text("当前").font(.caption2).foregroundColor(.green) }
-                                        }
-                                        .padding(10).background(Color.white.opacity(0.05)).cornerRadius(8)
+                    if !manager.tokenRecords.isEmpty && !useIndependentToken {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("选择已储存Token").font(.subheadline).foregroundColor(.white.opacity(0.6))
+                            ForEach(manager.tokenRecords) { record in
+                                Button {
+                                    manager.selectToken(record.token)
+                                } label: {
+                                    HStack {
+                                        Circle().fill(record.token == manager.currentToken ? Color.green : Color.clear).frame(width: 10, height: 10)
+                                        Text(mask(record.token)).font(.caption).foregroundColor(.white)
+                                        Spacer()
+                                        if record.token == manager.currentToken { Text("当前").font(.caption2).foregroundColor(.green) }
                                     }
+                                    .padding(10).background(Color.white.opacity(0.05)).cornerRadius(8)
                                 }
                             }
-                            .padding().background(Color.white.opacity(0.05)).cornerRadius(16)
                         }
+                        .padding().background(Color.white.opacity(0.05)).cornerRadius(16)
+                    }
 
-                        // 一键复制
-                        Button(action: {
-                            manager.oneClickLogin(token: useIndependentToken ? inputToken : nil)
-                        }) {
-                            HStack {
-                                Image(systemName: "bolt.fill")
-                                Text("一键复制Token（三角洲行动）")
-                                    .fontWeight(.semibold)
+                    // 一键复制按钮
+                    Button(action: {
+                        manager.oneClickLogin(token: useIndependentToken ? inputToken : nil)
+                    }) {
+                        HStack {
+                            Image(systemName: "bolt.fill")
+                            Text("一键复制Token（三角洲行动）")
+                                .fontWeight(.semibold)
+                        }
+                        .font(.subheadline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(Color.orange.opacity(0.8))
+                        .cornerRadius(12)
+                    }
+
+                    Text("或选择游戏复制Token")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.4))
+
+                    ForEach(games, id: \.name) { game in
+                        Button {
+                            manager.launchGame(gameName: game.name, token: useIndependentToken ? inputToken : nil)
+                        } label: {
+                            HStack(spacing: 16) {
+                                Image(systemName: game.icon).font(.system(size: 28)).foregroundColor(.white)
+                                    .frame(width: 56, height: 56).background(game.color).clipShape(RoundedRectangle(cornerRadius: 14))
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(game.name).font(.headline).foregroundColor(.white)
+                                    Text("复制Token并手动打开游戏").font(.caption).foregroundColor(.white.opacity(0.5))
+                                }
+                                Spacer()
+                                Text("📋 复制").font(.subheadline).fontWeight(.medium).foregroundColor(.white).padding(.horizontal, 20).padding(.vertical, 10).background(game.color).cornerRadius(8)
                             }
-                            .font(.subheadline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(Color.orange.opacity(0.8))
-                            .cornerRadius(12)
+                            .padding(14).background(Color.white.opacity(0.05)).cornerRadius(16)
+                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
                         }
+                    }
 
-                        Text("或选择游戏复制Token")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.4))
-
-                        ForEach(games, id: \.name) { game in
-                            Button {
-                                manager.launchGame(gameName: game.name, token: useIndependentToken ? inputToken : nil)
-                            } label: {
-                                HStack(spacing: 16) {
-                                    Image(systemName: game.icon).font(.system(size: 28)).foregroundColor(.white)
-                                        .frame(width: 56, height: 56).background(game.color).clipShape(RoundedRectangle(cornerRadius: 14))
+                    if !manager.accounts.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("操作记录").font(.subheadline).foregroundColor(.white.opacity(0.6))
+                            ForEach(manager.accounts) { acc in
+                                HStack {
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text(game.name).font(.headline).foregroundColor(.white)
-                                        Text("复制Token并手动打开游戏").font(.caption).foregroundColor(.white.opacity(0.5))
+                                        Text(acc.gameName).font(.subheadline).foregroundColor(.white)
+                                        Text("状态: \(acc.uid)").font(.caption).foregroundColor(.white.opacity(0.5))
+                                        Text(acc.loginTime).font(.caption2).foregroundColor(.white.opacity(0.3))
                                     }
                                     Spacer()
-                                    Text("📋 复制").font(.subheadline).fontWeight(.medium).foregroundColor(.white).padding(.horizontal, 20).padding(.vertical, 10).background(game.color).cornerRadius(8)
-                                }
-                                .padding(14).background(Color.white.opacity(0.05)).cornerRadius(16)
-                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                                    Button("删除") { manager.deleteAccount(id: acc.id) }.font(.caption).foregroundColor(.red)
+                                }.padding().background(Color.white.opacity(0.05)).cornerRadius(10)
                             }
                         }
-
-                        if !manager.accounts.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("操作记录").font(.subheadline).foregroundColor(.white.opacity(0.6))
-                                ForEach(manager.accounts) { acc in
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(acc.gameName).font(.subheadline).foregroundColor(.white)
-                                            Text("状态: \(acc.uid)").font(.caption).foregroundColor(.white.opacity(0.5))
-                                            Text(acc.loginTime).font(.caption2).foregroundColor(.white.opacity(0.3))
-                                        }
-                                        Spacer()
-                                        HStack(spacing: 8) {
-                                            Button("删除") { manager.deleteAccount(id: acc.id) }.font(.caption).foregroundColor(.red)
-                                        }
-                                    }.padding().background(Color.white.opacity(0.05)).cornerRadius(10)
-                                }
-                            }
-                            .padding().background(Color.white.opacity(0.03)).cornerRadius(16)
-                        }
-                    }.padding(16)
-                }
+                        .padding().background(Color.white.opacity(0.03)).cornerRadius(16)
+                    }
+                }.padding(16)
+            }
+        }
+        .overlay(alignment: .top) {
+            if manager.showBanner {
+                TopBanner(message: manager.bannerMessage, type: manager.bannerType)
             }
         }
         .navigationTitle("游戏登录")
@@ -673,78 +672,78 @@ struct ExtractTokenView: View {
     var body: some View {
         ZStack {
             Color(red: 0.08, green: 0.10, blue: 0.16).ignoresSafeArea()
-            VStack(spacing: 0) {
-                if manager.showBanner {
-                    TopBanner(message: manager.bannerMessage, type: manager.bannerType)
-                }
-                ScrollView {
-                    VStack(spacing: 20) {
-                        VStack(spacing: 12) {
-                            Text("从文本中提取Token").font(.headline).foregroundColor(.white)
-                            Text("粘贴包含Token的文本，自动识别并提取").font(.caption).foregroundColor(.white.opacity(0.5))
-                        }
+            ScrollView {
+                VStack(spacing: 20) {
+                    VStack(spacing: 12) {
+                        Text("从文本中提取Token").font(.headline).foregroundColor(.white)
+                        Text("粘贴包含Token的文本，自动识别并提取").font(.caption).foregroundColor(.white.opacity(0.5))
+                    }
 
-                        VStack(spacing: 12) {
-                            TextEditor(text: $inputText)
-                                .frame(minHeight: 120)
-                                .padding(8)
-                                .background(Color.white.opacity(0.1))
-                                .cornerRadius(10)
-                                .foregroundColor(.white)
-                                .focused($isFocused)
-                                .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完成") { isFocused = false } } }
-                                .overlay(
-                                    Group {
-                                        if inputText.isEmpty {
-                                            Text("在此粘贴文本...").foregroundColor(.white.opacity(0.3)).padding(.leading, 16).padding(.top, 16)
-                                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                                        }
-                                    }
-                                )
-
-                            Button {
-                                extractToken()
-                            } label: {
-                                Label("提取Token", systemImage: "magnifyingglass")
-                                    .font(.subheadline).foregroundColor(.white)
-                                    .frame(maxWidth: .infinity).padding(.vertical, 14)
-                                    .background(Color.purple).cornerRadius(10)
-                            }
-                        }
-
-                        if !extractedToken.isEmpty {
-                            VStack(spacing: 12) {
-                                Text("提取结果").font(.subheadline).foregroundColor(.green)
-                                Text(extractedToken).font(.system(.caption, design: .monospaced)).foregroundColor(.white)
-                                    .padding().background(Color.white.opacity(0.05)).cornerRadius(10)
-                                HStack(spacing: 12) {
-                                    Button {
-                                        manager.saveToken(extractedToken, source: "提取")
-                                        extractedToken = ""
-                                        inputText = ""
-                                    } label: {
-                                        Label("储存", systemImage: "square.and.arrow.down").font(.caption).foregroundColor(.white)
-                                            .frame(maxWidth: .infinity).padding(.vertical, 12).background(Color.green).cornerRadius(10)
-                                    }
-                                    Button {
-                                        UIPasteboard.general.string = extractedToken
-                                    } label: {
-                                        Label("复制", systemImage: "doc.on.doc").font(.caption).foregroundColor(.white)
-                                            .frame(maxWidth: .infinity).padding(.vertical, 12).background(Color.blue).cornerRadius(10)
+                    VStack(spacing: 12) {
+                        TextEditor(text: $inputText)
+                            .frame(minHeight: 120)
+                            .padding(8)
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(10)
+                            .foregroundColor(.white)
+                            .focused($isFocused)
+                            .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("完成") { isFocused = false } } }
+                            .overlay(
+                                Group {
+                                    if inputText.isEmpty {
+                                        Text("在此粘贴文本...").foregroundColor(.white.opacity(0.3)).padding(.leading, 16).padding(.top, 16)
+                                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                                     }
                                 }
-                            }
-                            .padding().background(Color.white.opacity(0.05)).cornerRadius(16)
-                        }
+                            )
 
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("支持格式").font(.subheadline).foregroundColor(.white.opacity(0.6))
-                            Text("• JSON: {\"token\":\"xxx\"}").font(.caption).foregroundColor(.white.opacity(0.4))
-                            Text("• URL参数: ?token=xxx").font(.caption).foregroundColor(.white.opacity(0.4))
-                            Text("• 纯文本Token (长度>10)").font(.caption).foregroundColor(.white.opacity(0.4))
-                        }.padding().frame(maxWidth: .infinity, alignment: .leading).background(Color.white.opacity(0.05)).cornerRadius(12)
-                    }.padding(16)
-                }
+                        Button {
+                            extractToken()
+                        } label: {
+                            Label("提取Token", systemImage: "magnifyingglass")
+                                .font(.subheadline).foregroundColor(.white)
+                                .frame(maxWidth: .infinity).padding(.vertical, 14)
+                                .background(Color.purple).cornerRadius(10)
+                        }
+                    }
+
+                    if !extractedToken.isEmpty {
+                        VStack(spacing: 12) {
+                            Text("提取结果").font(.subheadline).foregroundColor(.green)
+                            Text(extractedToken).font(.system(.caption, design: .monospaced)).foregroundColor(.white)
+                                .padding().background(Color.white.opacity(0.05)).cornerRadius(10)
+                            HStack(spacing: 12) {
+                                Button {
+                                    manager.saveToken(extractedToken, source: "提取")
+                                    extractedToken = ""
+                                    inputText = ""
+                                } label: {
+                                    Label("储存", systemImage: "square.and.arrow.down").font(.caption).foregroundColor(.white)
+                                        .frame(maxWidth: .infinity).padding(.vertical, 12).background(Color.green).cornerRadius(10)
+                                }
+                                Button {
+                                    UIPasteboard.general.string = extractedToken
+                                } label: {
+                                    Label("复制", systemImage: "doc.on.doc").font(.caption).foregroundColor(.white)
+                                        .frame(maxWidth: .infinity).padding(.vertical, 12).background(Color.blue).cornerRadius(10)
+                                }
+                            }
+                        }
+                        .padding().background(Color.white.opacity(0.05)).cornerRadius(16)
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("支持格式").font(.subheadline).foregroundColor(.white.opacity(0.6))
+                        Text("• JSON: {\"token\":\"xxx\"}").font(.caption).foregroundColor(.white.opacity(0.4))
+                        Text("• URL参数: ?token=xxx").font(.caption).foregroundColor(.white.opacity(0.4))
+                        Text("• 纯文本Token (长度>10)").font(.caption).foregroundColor(.white.opacity(0.4))
+                    }.padding().frame(maxWidth: .infinity, alignment: .leading).background(Color.white.opacity(0.05)).cornerRadius(12)
+                }.padding(16)
+            }
+        }
+        .overlay(alignment: .top) {
+            if manager.showBanner {
+                TopBanner(message: manager.bannerMessage, type: manager.bannerType)
             }
         }
         .navigationTitle("提取Token")
