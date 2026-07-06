@@ -30,6 +30,7 @@
 	</array>
 	<key>UIRequiresFullScreen</key>
 	<true/>
+	<!-- 支持所有方向（竖屏 + 横屏） -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -41,13 +42,12 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<!-- 允许查询其他应用的 URL Scheme（用于唤起游戏） -->
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
-		<!-- 保留原始注册的 scheme，便于未来扩展 -->
-		<string>tencent100823541</string>
-		<string>tencentlaunch100823541</string>
-		<string>QQ06009135</string>
 		<string>dfmobile</string>
+		<string>darkzone</string>
+		<string>pubgm</string>
 	</array>
 </dict>
 </plist>
