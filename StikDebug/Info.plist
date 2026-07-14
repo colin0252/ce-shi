@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>StikDebug</string>
+	<string>Delta 登录助手</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -41,11 +41,26 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<!-- 保留 StikDebug 原有的查询 scheme（可选，不影响功能） -->
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>dfmobile</string>
 		<string>darkzone</string>
 		<string>pubgm</string>
+	</array>
+	<!-- 添加接收三角洲跳转的 URL scheme -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.fake.qq</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>mqq</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>
