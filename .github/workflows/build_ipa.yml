@@ -18,8 +18,8 @@ jobs:
     
     - name: Create LaunchScreen.storyboard
       run: |
-        mkdir -p StikDebug/Base.lproj
-        cat > StikDebug/Base.lproj/LaunchScreen.storyboard << 'EOF'
+        mkdir -p DeltaLogin/Base.lproj
+        cat > DeltaLogin/Base.lproj/LaunchScreen.storyboard << 'EOF'
         <?xml version="1.0" encoding="UTF-8"?>
         <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="21701" targetRuntime="AppleSDK" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="01J-lp-oVM">
             <dependencies>
@@ -34,7 +34,7 @@ jobs:
                                 <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                                 <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                                 <subviews>
-                                    <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="750" text="StikDebug" textAlignment="center" lineBreakMode="middleTruncation" baselineAdjustment="alignBaselines" minimumFontSize="18" translatesAutoresizingMaskIntoConstraints="NO" id="GJd-Yh-RWb">
+                                    <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="750" text="DeltaLogin" textAlignment="center" lineBreakMode="middleTruncation" baselineAdjustment="alignBaselines" minimumFontSize="18" translatesAutoresizingMaskIntoConstraints="NO" id="GJd-Yh-RWb">
                                         <rect key="frame" x="96.666666666666671" y="406" width="200" height="40"/>
                                         <fontDescription key="fontDescription" type="boldSystem" pointSize="30"/>
                                         <color key="textColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
@@ -58,34 +58,34 @@ jobs:
     
     - name: Fix Info.plist
       run: |
-        /usr/libexec/PlistBuddy -c "Add :UILaunchStoryboardName string LaunchScreen" StikDebug/Info.plist 2>/dev/null || true
-        /usr/libexec/PlistBuddy -c "Add :UIRequiresFullScreen bool true" StikDebug/Info.plist 2>/dev/null || true
+        /usr/libexec/PlistBuddy -c "Add :UILaunchStoryboardName string LaunchScreen" DeltaLogin/Info.plist 2>/dev/null || true
+        /usr/libexec/PlistBuddy -c "Add :UIRequiresFullScreen bool true" DeltaLogin/Info.plist 2>/dev/null || true
 
     - name: Build archive
       run: |
         xcodebuild clean archive \
-          -project StikDebug.xcodeproj \
-          -scheme StikDebug \
+          -project DeltaLogin.xcodeproj \
+          -scheme DeltaLogin \
           -configuration Release \
           -destination 'generic/platform=iOS' \
-          -archivePath build/StikDebug.xcarchive \
+          -archivePath build/DeltaLogin.xcarchive \
           CODE_SIGNING_ALLOWED=NO \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGN_IDENTITY="" \
-          PRODUCT_BUNDLE_IDENTIFIER=com.stikdebug.app \
+          PRODUCT_BUNDLE_IDENTIFIER=com.fake.DeltaLogin \
           IPHONEOS_DEPLOYMENT_TARGET=16.4 \
           DEBUG_INFORMATION_FORMAT=dwarf
     
     - name: Create unsigned IPA
       run: |
         mkdir -p Payload
-        cp -r build/StikDebug.xcarchive/Products/Applications/StikDebug.app Payload/
-        zip -r StikDebug.ipa Payload
+        cp -r build/DeltaLogin.xcarchive/Products/Applications/DeltaLogin.app Payload/
+        zip -r DeltaLogin.ipa Payload
         rm -rf Payload
     
     - name: Upload IPA
       uses: actions/upload-artifact@v4
       with:
-        name: StikDebug-unsigned
-        path: StikDebug.ipa
+        name: DeltaLogin-unsigned
+        path: DeltaLogin.ipa
         retention-days: 90
