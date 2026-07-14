@@ -1,6 +1,5 @@
 import SwiftUI
 
-// MARK: - App 入口
 @main
 struct DeltaLoginApp: App {
     @StateObject private var tokenManager = TokenManager()
@@ -12,7 +11,7 @@ struct DeltaLoginApp: App {
                     .environmentObject(tokenManager)
             }
             .navigationViewStyle(.stack)
-            .ignoresSafeArea(.all)          // 铺满全屏，消除黑边
+            .ignoresSafeArea(.all)          // 关键：全屏显示
             .onOpenURL { url in
                 handleIncomingURL(url, tokenManager: tokenManager)
             }
@@ -44,11 +43,6 @@ class TokenManager: ObservableObject {
     func saveToken(_ token: String) {
         savedToken = token
         UserDefaults.standard.set(token, forKey: tokenKey)
-    }
-
-    func clearToken() {
-        savedToken = ""
-        UserDefaults.standard.removeObject(forKey: tokenKey)
     }
 }
 
